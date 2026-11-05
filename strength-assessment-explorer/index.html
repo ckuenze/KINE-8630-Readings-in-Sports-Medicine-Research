@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Isometric &amp; Isokinetic Strength Testing</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#1E2761; --navy-soft:#273575; --ice:#CADCFC; --amber:#E8AA42; --slate:#44546A;
+    --bg:#FAFBFF; --white:#FFFFFF; --red:#C1443C; --red-bg:#FDEDEC; --green:#1C9C6E; --green-bg:#EAF8F2;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:Calibri,'Segoe UI',Helvetica,Arial,sans-serif; background:var(--bg); color:var(--navy); }
+  header{ background:var(--navy); color:var(--white); padding:22px 28px 20px; }
+  header h1{ font-family:Cambria,Georgia,'Times New Roman',serif; margin:0 0 4px; font-size:24px; }
+  header p{ margin:0; color:var(--ice); font-size:14px; max-width:920px; line-height:1.4; }
+  .layout{ display:flex; gap:18px; padding:18px; align-items:flex-start; flex-wrap:wrap; }
+  .controls{ width:320px; flex-shrink:0; display:flex; flex-direction:column; gap:14px; }
+  .charts{ flex:1; min-width:460px; display:flex; flex-direction:column; gap:14px; }
+  .card{ background:var(--white); border:1px solid var(--ice); border-radius:10px; padding:15px 17px; }
+  .card h2{ font-size:12.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--amber); margin:0 0 12px; font-weight:700; }
+  .row{ margin-bottom:12px; } .row:last-child{margin-bottom:0;}
+  label{ display:flex; justify-content:space-between; font-size:13px; color:var(--slate); margin-bottom:4px; }
+  label span.val{ color:var(--navy); font-weight:700; }
+  input[type=range]{ width:100%; accent-color:var(--navy); }
+  .ticks{ display:flex; justify-content:space-between; font-size:9.5px; color:#9aa4bd; margin-top:2px;}
+  .preset-note{ font-size:11.5px; color:var(--slate); line-height:1.4; }
+  .chart-card{ background:var(--white); border:1px solid var(--ice); border-radius:10px; padding:12px 16px 6px; }
+  .chart-card h3{ font-size:13.5px; margin:2px 0 8px; color:var(--navy); }
+  .chart-wrap{ position:relative; height:280px; }
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  th{ text-align:left; color:var(--slate); font-size:11px; text-transform:uppercase; letter-spacing:0.4px; padding:6px 8px; border-bottom:2px solid var(--ice); }
+  th.num, td.num{ text-align:right; }
+  td{ padding:8px 8px; border-bottom:1px solid #EEF2FC; }
+  tr.metric-healthy td:nth-child(2){ color:var(--navy); font-weight:700; }
+  tr.metric-oa td:nth-child(3){ color:var(--red); font-weight:700; }
+  .ratio-good{ color:var(--slate); }
+  .ratio-bad{ color:var(--red); font-weight:700; }
+  .callouts{ display:flex; flex-direction:column; gap:8px; }
+  .callout{ border-radius:8px; padding:9px 12px; font-size:13px; line-height:1.4; border:1px solid transparent; }
+  .callout.info{ background:var(--ice); color:var(--navy); border-color:#b7c9ef;}
+  .callout.warn{ background:var(--red-bg); color:var(--navy); border-color:var(--red);}
+  .callout.good{ background:var(--green-bg); color:var(--navy); border-color:var(--green);}
+  .foot{ padding:0 18px 18px; font-size:11px; color:#9aa4bd; }
+  .tabs{ display:flex; gap:8px; padding:14px 18px 0; }
+  .tab-btn{ padding:10px 18px; border-radius:9px 9px 0 0; border:1px solid var(--ice); border-bottom:none;
+    background:#EEF2FC; color:var(--slate); font-weight:700; font-size:13.5px; cursor:pointer; }
+  .tab-btn.active{ background:var(--bg); color:var(--navy); }
+  .tab-btn:hover:not(.active){ background:#E2E9FA; }
+  .hidden{ display:none; }
+  .velcard{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:6px; }
+  .velbox{ background:var(--bg); border:1px solid var(--ice); border-radius:8px; padding:8px; text-align:center; }
+  .velbox .v{ font-family:Cambria,Georgia,serif; font-weight:700; font-size:16px; color:var(--navy); }
+  .velbox .l{ font-size:10px; color:var(--slate); }
+  th.col-60{ color:#1E2761; } th.col-180{ color:#C1443C; } th.col-300{ color:#E8AA42; }
+  .filebtn{ display:inline-block; padding:9px 14px; border-radius:7px; border:1px solid var(--navy);
+    background:var(--white); color:var(--navy); font-weight:700; font-size:12.5px; cursor:pointer; text-align:center; }
+  .filebtn:hover{ background:#EEF2FC; }
+  .radio-row{ display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:13px; color:var(--slate); }
+  .radio-row input{ accent-color:var(--navy); }
+  .info-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
+  .info-box{ background:var(--bg); border:1px solid var(--ice); border-radius:7px; padding:7px 9px; }
+  .info-box .k{ font-size:10px; color:var(--slate); text-transform:uppercase; letter-spacing:0.3px; }
+  .info-box .v{ font-family:Cambria,Georgia,serif; font-weight:700; font-size:15px; color:var(--navy); }
+  .metric-check{ display:flex; align-items:flex-start; gap:8px; margin-bottom:9px; }
+  .metric-check input{ margin-top:2px; accent-color:var(--navy); }
+  .metric-check label{ margin:0; font-size:13px; color:var(--navy); font-weight:600; line-height:1.3; }
+  .zoom-row{ display:flex; gap:8px; align-items:center; }
+  .zoom-row input[type=number]{ width:100%; padding:6px 8px; border:1px solid var(--ice); border-radius:6px; font-size:13px; }
+  .peakbox{ background:var(--bg); border:1px solid var(--ice); border-radius:8px; padding:9px 11px; margin-bottom:8px; }
+  .peakbox .lbl{ font-size:10.5px; color:var(--slate); text-transform:uppercase; letter-spacing:0.3px; }
+  .peakbox .val{ font-family:Cambria,Georgia,serif; font-weight:700; font-size:16px; color:var(--navy); }
+  .upload-note{ font-size:11.5px; color:#9aa4bd; margin-top:6px; line-height:1.4; }
+  .legend-line{ display:inline-block; width:16px; height:3px; border-radius:2px; margin-right:5px; vertical-align:middle; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Isometric &amp; Isokinetic Strength Testing</h1>
+  <p>Two tabs, two contraction types. Use the controls in each to sample, filter, and threshold the signal, then read off the metrics. Try extreme settings and watch what happens to the story the numbers tell.</p>
+</header>
+
+<div class="tabs">
+  <div class="tab-btn active" id="tabIsometric">Isometric: Healthy vs. Knee OA</div>
+  <div class="tab-btn" id="tabIsokinetic">Isokinetic: 60 / 180 / 300 &deg;/s</div>
+  <div class="tab-btn" id="tabUpload">Analyze Your Own Data</div>
+</div>
+
+<div id="pageIsometric">
+<div class="layout">
+
+  <div class="controls">
+    <div class="card">
+      <h2>Acquisition</h2>
+      <div class="row">
+        <label>Sampling rate <span class="val" id="fsVal">1000 Hz</span></label>
+        <input type="range" id="fs" min="50" max="2222" step="1" value="1000">
+        <div class="ticks"><span>50 Hz</span><span>2222 Hz</span></div>
+      </div>
+      <div class="row">
+        <label>Low-pass filter cutoff <span class="val" id="cutoffVal">100 Hz</span></label>
+        <input type="range" id="cutoff" min="5" max="200" step="5" value="100">
+        <div class="ticks"><span>5 Hz</span><span>200 Hz</span></div>
+      </div>
+      <div class="preset-note">Filter is applied zero-lag (forward &amp; backward), same as taught in class &mdash; no phase delay from filtering alone.</div>
+    </div>
+    <div class="card">
+      <h2>Onset Detection</h2>
+      <div class="row">
+        <label>Torque onset threshold <span class="val" id="threshVal">5 Nm</span></label>
+        <input type="range" id="thresh" min="0.1" max="20" step="0.1" value="5">
+        <div class="ticks"><span>0.1 Nm</span><span>20 Nm</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Signal Quality</h2>
+      <div class="row" style="display:flex;align-items:center;gap:8px;margin-bottom:0;">
+        <input type="checkbox" id="hum" style="width:16px;height:16px;accent-color:var(--red);">
+        <label for="hum" style="margin:0;font-weight:700;color:var(--navy);">60 Hz powerline interference</label>
+      </div>
+      <div class="preset-note" style="margin-top:8px;">Toggle on to add mains hum to both traces. At low sampling rates, watch what it turns into.</div>
+    </div>
+    <div class="card">
+      <h2>Quick Presets</h2>
+      <div class="row" style="display:flex; flex-direction:column; gap:8px;">
+        <button class="preset-btn" id="presetGold" style="padding:8px;border-radius:7px;border:1px solid var(--navy);background:var(--navy);color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;">White et al. (2024) gold standard (2222 Hz / 150 Hz / 1 Nm)</button>
+        <button class="preset-btn" id="presetClinic" style="padding:8px;border-radius:7px;border:1px solid var(--navy);background:#fff;color:var(--navy);font-weight:700;font-size:12.5px;cursor:pointer;">Typical clinical HHD (100 Hz / 10 Hz / 5 Nm)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <h3><span class="legend-line" style="background:#1E2761;"></span>Healthy &nbsp;&nbsp;<span class="legend-line" style="background:#C1443C;"></span>Knee OA &mdash; Torque vs. Time</h3>
+      <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Computed Metrics</h3>
+      <table>
+        <thead><tr><th>Metric</th><th class="num">Healthy</th><th class="num">Knee OA</th><th class="num">Ratio (H:OA)</th></tr></thead>
+        <tbody id="metricsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="callouts" id="callouts"></div>
+  </div>
+
+</div>
+<div class="foot">Simulated data for teaching purposes, not real patient recordings. Average RTD is computed over the middle 60% of the onset-to-peak window; torque steadiness is computed over the middle 1 second of the 3-second contraction (both anchored to the detected onset, not a hidden ground truth). Peak search is bounded to the first second after onset to avoid picking up a random noise excursion late in the plateau &mdash; a real methodological choice, not just a simulation convenience.</div>
+</div>
+
+<div id="pageIsokinetic" class="hidden">
+<div class="layout">
+
+  <div class="controls">
+    <div class="card">
+      <h2>Acquisition</h2>
+      <div class="row">
+        <label>Sampling rate <span class="val" id="ikoFsVal">1000 Hz</span></label>
+        <input type="range" id="ikoFs" min="20" max="2000" step="10" value="1000">
+        <div class="ticks"><span>20 Hz</span><span>2000 Hz</span></div>
+      </div>
+      <div class="row">
+        <label>Low-pass filter cutoff <span class="val" id="ikoCutoffVal">100 Hz</span></label>
+        <input type="range" id="ikoCutoff" min="5" max="200" step="5" value="100">
+        <div class="ticks"><span>5 Hz</span><span>200 Hz</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Signal Quality</h2>
+      <div class="row" style="display:flex;align-items:center;gap:8px;margin-bottom:0;">
+        <input type="checkbox" id="ikoHum" style="width:16px;height:16px;accent-color:var(--red);">
+        <label for="ikoHum" style="margin:0;font-weight:700;color:var(--navy);">60 Hz powerline interference</label>
+      </div>
+      <div class="preset-note" style="margin-top:8px;">Applied to all three velocity traces at once.</div>
+    </div>
+    <div class="card">
+      <h2>Test Protocol</h2>
+      <div class="preset-note">One cycle of knee extension (concentric quadriceps) then flexion (concentric hamstrings), through a fixed 90&deg; range of motion, at three preset isokinetic velocities. All three share the acquisition settings above.</div>
+      <div class="velcard">
+        <div class="velbox"><div class="v">60</div><div class="l">&deg;/s</div></div>
+        <div class="velbox"><div class="v">180</div><div class="l">&deg;/s</div></div>
+        <div class="velbox"><div class="v">300</div><div class="l">&deg;/s</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <h3><span class="legend-line" style="background:#1E2761;"></span>60&deg;/s &nbsp;&nbsp;<span class="legend-line" style="background:#C1443C;"></span>180&deg;/s &nbsp;&nbsp;<span class="legend-line" style="background:#E8AA42;"></span>300&deg;/s</h3>
+      <p style="font-size:11.5px;color:#9aa4bd;margin:-4px 0 8px;">Positive = extension (quadriceps), negative = flexion (hamstrings). Each trace runs only as long as its own cycle takes &mdash; faster speeds finish sooner.</p>
+      <div class="chart-wrap"><canvas id="ikoChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Computed Metrics</h3>
+      <table>
+        <thead><tr><th>Metric</th><th class="num col-60">60&deg;/s</th><th class="num col-180">180&deg;/s</th><th class="num col-300">300&deg;/s</th></tr></thead>
+        <tbody id="ikoMetricsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="callouts" id="ikoCallouts"></div>
+  </div>
+
+</div>
+<div class="foot">Simulated data for teaching purposes, not real subject recordings. Peak torque is the naive global maximum per direction &mdash; the same way many systems report it by default. Total cycle time and % of ROM in true constant-velocity motion are protocol parameters (known from the preset velocity, fixed 90&deg; range of motion, and a fixed ~120 ms dynamometer acceleration time), not measurements subject to sampling error.</div>
+</div>
+
+<div id="pageUpload" class="hidden">
+<div class="layout">
+
+  <div class="controls">
+    <div class="card">
+      <h2>Load Data</h2>
+      <div class="radio-row"><input type="radio" name="upDataType" id="upTypeIso" value="isometric" checked> <label for="upTypeIso">Isometric (time, torque)</label></div>
+      <div class="radio-row"><input type="radio" name="upDataType" id="upTypeIko" value="isokinetic"> <label for="upTypeIko">Isokinetic (time, torque, angle)</label></div>
+      <label class="filebtn" for="upFileInput" style="display:block;margin-top:8px;">Choose CSV or XLSX file</label>
+      <input type="file" id="upFileInput" accept=".csv,.xlsx" style="display:none;">
+      <div class="upload-note">First row may be a header (auto-detected). Columns should be in the order shown above, with no extra columns.</div>
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button class="preset-btn" id="upSampleIso" style="flex:1;padding:7px;font-size:11.5px;">Try sample isometric data</button>
+        <button class="preset-btn" id="upSampleIko" style="flex:1;padding:7px;font-size:11.5px;">Try sample isokinetic data</button>
+      </div>
+      <div class="info-grid" id="upInfoGrid" style="display:none;">
+        <div class="info-box"><div class="k">Detected fs</div><div class="v" id="upFsDetected">&mdash;</div></div>
+        <div class="info-box"><div class="k">Samples</div><div class="v" id="upNSamples">&mdash;</div></div>
+        <div class="info-box"><div class="k">Duration</div><div class="v" id="upDuration">&mdash;</div></div>
+        <div class="info-box"><div class="k">Columns found</div><div class="v" id="upNCols">&mdash;</div></div>
+      </div>
+      <div class="upload-note" id="upError" style="color:#C1443C;font-weight:700;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Processing</h2>
+      <div class="row">
+        <label>Low-pass filter cutoff <span class="val" id="upCutoffVal">50 Hz</span></label>
+        <input type="range" id="upCutoff" min="1" max="250" step="1" value="50">
+      </div>
+      <div class="row">
+        <label>Onset threshold <span class="val" id="upThreshVal">5 Nm</span></label>
+        <input type="range" id="upThresh" min="0.1" max="30" step="0.1" value="5">
+      </div>
+      <div class="info-box" style="margin-top:4px;"><div class="k">Detected onset (shown as the dashed line on both charts)</div><div class="v" id="upOnsetVal">&mdash;</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Zoom Window</h2>
+      <div class="zoom-row">
+        <input type="number" id="upZoomFrom" step="0.01" placeholder="from (s)">
+        <input type="number" id="upZoomTo" step="0.01" placeholder="to (s)">
+      </div>
+      <div style="margin-top:8px;"><button class="preset-btn" id="upResetZoom" style="width:100%;padding:7px;font-size:12px;">Reset to full recording</button></div>
+      <div class="upload-note">Applies to both charts below. Narrow the window, then click on the filtered chart to mark a peak precisely.</div>
+    </div>
+
+    <div class="card">
+      <h2>Peak: Automated vs. Manual</h2>
+      <div class="peakbox"><div class="lbl">Automated peak extension (max in first contraction)</div><div class="val" id="upAutoPeak">&mdash;</div></div>
+      <div class="peakbox" id="upFlexBox"><div class="lbl">Automated peak flexion (min)</div><div class="val" id="upAutoFlex">&mdash;</div></div>
+      <div class="peakbox"><div class="lbl">Your manual mark</div><div class="val" id="upManualPeak">Click the filtered chart to mark</div></div>
+      <div class="upload-note" id="upCycleInfo" style="display:none;"></div>
+      <div style="display:flex; gap:8px; margin-bottom:8px;">
+        <button class="preset-btn" id="upClearMark" style="flex:1;padding:6px;font-size:11.5px;">Clear my mark</button>
+      </div>
+      <div class="radio-row"><input type="radio" name="upBasis" id="upBasisAuto" value="auto" checked> <label for="upBasisAuto">Use automated peak for calculations below</label></div>
+      <div class="radio-row"><input type="radio" name="upBasis" id="upBasisManual" value="manual"> <label for="upBasisManual">Use my manual mark instead</label></div>
+    </div>
+
+    <div class="card">
+      <h2>Variables to Calculate</h2>
+      <div class="metric-check" id="mcPeakRow"><input type="checkbox" id="mcPeak" checked><label for="mcPeak">Peak torque</label></div>
+      <div class="metric-check iko-only" id="mcAbsExtRow" style="display:none;"><input type="checkbox" id="mcAbsExt" checked><label for="mcAbsExt">Absolute peak, extension (single best rep)</label></div>
+      <div class="metric-check iko-only" id="mcAvgExtRow" style="display:none;"><input type="checkbox" id="mcAvgExt" checked><label for="mcAvgExt">Average peak, extension (across all reps)</label></div>
+      <div class="metric-check iko-only" id="mcAbsFlexRow" style="display:none;"><input type="checkbox" id="mcAbsFlex" checked><label for="mcAbsFlex">Absolute peak, flexion (single best rep)</label></div>
+      <div class="metric-check iko-only" id="mcAvgFlexRow" style="display:none;"><input type="checkbox" id="mcAvgFlex" checked><label for="mcAvgFlex">Average peak, flexion (across all reps)</label></div>
+      <div class="metric-check"><input type="checkbox" id="mcRtd50" checked><label for="mcRtd50">Rate of torque development, 0&ndash;50 ms</label></div>
+      <div class="metric-check"><input type="checkbox" id="mcRtd100" checked><label for="mcRtd100">Rate of torque development, 0&ndash;100 ms</label></div>
+      <div class="metric-check"><input type="checkbox" id="mcAvgRtd" checked><label for="mcAvgRtd">Average RTD (middle 60% of onset-to-peak)</label></div>
+      <div class="metric-check"><input type="checkbox" id="mcWork" checked><label for="mcWork" id="mcWorkLabel">Torque-time integral</label></div>
+      <div class="metric-check" id="mcSteadyRow"><input type="checkbox" id="mcSteady"><label for="mcSteady">Torque steadiness (SD / CV)</label></div>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <h3><span class="legend-line" style="background:#B9C4DD;"></span>Raw signal &nbsp;&nbsp;<span class="legend-line" style="background:#E8AA42;border-style:dashed;"></span>onset</h3>
+      <div class="chart-wrap"><canvas id="upRawChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3><span class="legend-line" style="background:#1E2761;"></span>Filtered signal &nbsp;&nbsp;<span class="legend-line" style="background:#E8AA42;border-style:dashed;"></span>onset <span style="font-weight:400;color:#9aa4bd;font-size:11.5px;">&mdash; click anywhere on this chart to drop a manual peak marker</span></h3>
+      <div class="chart-wrap"><canvas id="upFiltChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Computed Metrics</h3>
+      <table>
+        <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
+        <tbody id="upMetricsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="callouts" id="upCallouts"></div>
+  </div>
+
+</div>
+<div class="foot">Upload your own exported raw data, or try the sample buttons first. Nothing you upload leaves your browser &mdash; parsing happens locally, not on a server. Automated peak detection is a simple maximum within the first contraction (onset to the end of the first extension phase, or onset + 1 s for isometric files), deliberately not smarter than that &mdash; use the zoom window and manual marking to check it, the same way you'd sanity-check any automated output.</div>
+</div>
+
+<script>
+const el = id => document.getElementById(id);
+const T0 = 0.5, CONTRACTION_LEN = 3.0, DURATION = 4.0;
+const HUM_AMP = 3.0, HUM_PHASE = 0.6;
+
+// ---------- Signal generation (fixed "true" profiles, seeded noise for reproducibility) ----------
+function makeRng(seed){ let s = seed; return function(){ s = (s*9301+49297)%233280; return s/233280; }; }
+
+function trueTorqueBase(t, A, tau){
+  const tEnd = T0 + CONTRACTION_LEN;
+  if(t < T0) return 0;
+  if(t <= tEnd) return A * (1 - Math.exp(-(t-T0)/tau));
+  const plateauVal = A * (1 - Math.exp(-CONTRACTION_LEN/tau));
+  const decayTau = 0.1;
+  return plateauVal * Math.exp(-(t-tEnd)/decayTau);
+}
+function humAt(t){ return HUM_AMP * Math.sin(2*Math.PI*60*t + HUM_PHASE); }
+
+function generateDense(profile, seed, nPoints){
+  const rng = makeRng(seed);
+  const ts=[], ys=[];
+  for(let i=0;i<nPoints;i++){
+    const t = i/(nPoints-1)*DURATION;
+    let v = trueTorqueBase(t, profile.A, profile.tau);
+    let u=0; for(let k=0;k<4;k++) u+=rng();
+    v += profile.noiseSD * (u/4-0.5)*3.2;
+    if(t > T0 + 4*profile.tau && t <= T0 + CONTRACTION_LEN){
+      v += profile.wobbleAmp * Math.sin(2*Math.PI*profile.wobbleHz*t + profile.wobblePhase);
+    }
+    ts.push(t); ys.push(v);
+  }
+  return {ts, ys};
+}
+
+const HEALTHY_PROFILE = { A:180, tau:0.05, noiseSD:1.5, wobbleAmp:0.8, wobbleHz:1.2, wobblePhase:0.4 };
+const OA_PROFILE       = { A:110, tau:0.15, noiseSD:1.5, wobbleAmp:4.5, wobbleHz:0.9, wobblePhase:1.1 };
+const NPTS = 16000;
+const denseHealthy = generateDense(HEALTHY_PROFILE, 11, NPTS);
+const denseOA = generateDense(OA_PROFILE, 22, NPTS);
+const denseHum = denseHealthy.ts.map(t => humAt(t));
+
+// ---------- Processing pipeline ----------
+function downsample(dense, fs, humOn){
+  const outTs=[], outYs=[];
+  const n = Math.floor(DURATION*fs);
+  for(let k=0;k<=n;k++){
+    const t = k/fs;
+    if(t>DURATION) break;
+    const idx = Math.min(dense.ts.length-1, Math.round(t/DURATION*(dense.ts.length-1)));
+    let v = dense.ys[idx];
+    if(humOn) v += denseHum[idx];
+    outTs.push(t); outYs.push(v);
+  }
+  return {ts:outTs, ys:outYs};
+}
+function onePoleForward(ys, fs, fc){
+  const out = new Array(ys.length);
+  const dt=1/fs, rc=1/(2*Math.PI*fc), alpha=dt/(rc+dt);
+  out[0]=ys[0];
+  for(let i=1;i<ys.length;i++) out[i]=out[i-1]+alpha*(ys[i]-out[i-1]);
+  return out;
+}
+function zeroLagLowPass(ys, fs, fc){
+  const fwd = onePoleForward(ys, fs, fc);
+  const back = onePoleForward(fwd.slice().reverse(), fs, fc);
+  return back.reverse();
+}
+function interpAtTime(ts, ys, targetT){
+  if(targetT<=ts[0]) return ys[0];
+  if(targetT>=ts[ts.length-1]) return ys[ys.length-1];
+  for(let i=1;i<ts.length;i++){
+    if(ts[i]>=targetT){
+      const frac=(targetT-ts[i-1])/(ts[i]-ts[i-1]);
+      return ys[i-1]+frac*(ys[i]-ys[i-1]);
+    }
+  }
+  return ys[ys.length-1];
+}
+function analyze(ts, ys, threshold){
+  let onsetIdx=-1;
+  for(let i=0;i<ys.length;i++){ if(ys[i]>=threshold){ onsetIdx=i; break; } }
+  const onsetT = onsetIdx>=0 ? ts[onsetIdx] : null;
+  const onsetVal = onsetIdx>=0 ? ys[onsetIdx] : null;
+  let peakVal=-Infinity, peakT=null;
+  if(onsetT!==null){
+    for(let i=0;i<ys.length;i++){
+      if(ts[i]>=onsetT && ts[i]<=onsetT+1.0 && ys[i]>peakVal){ peakVal=ys[i]; peakT=ts[i]; }
+    }
+  }
+  const rtd50 = onsetT!==null ? (interpAtTime(ts,ys,onsetT+0.05)-onsetVal)/0.05 : null;
+  const rtd100 = onsetT!==null ? (interpAtTime(ts,ys,onsetT+0.1)-onsetVal)/0.1 : null;
+
+  // Average RTD: middle 60% of the onset-to-peak window (trims noisy onset & flattening-near-peak ends)
+  let avgRtd = null, avgRtdWindow = null;
+  if(onsetT!==null && peakT>onsetT){
+    const winStart = onsetT + 0.2*(peakT-onsetT);
+    const winEnd = onsetT + 0.8*(peakT-onsetT);
+    const vStart = interpAtTime(ts,ys,winStart);
+    const vEnd = interpAtTime(ts,ys,winEnd);
+    avgRtd = (vEnd-vStart)/(winEnd-winStart);
+    avgRtdWindow = [winStart, winEnd];
+  }
+
+  // Torque steadiness: middle 1s of the (detected) 3s contraction
+  let sd=null, cv=null, steadyWindow=null;
+  if(onsetT!==null){
+    const midStart = onsetT + (CONTRACTION_LEN-1)/2;
+    const midEnd = onsetT + (CONTRACTION_LEN+1)/2;
+    const plateauVals = ys.filter((v,i)=>ts[i]>=midStart && ts[i]<=midEnd);
+    if(plateauVals.length>1){
+      const mean = plateauVals.reduce((a,b)=>a+b,0)/plateauVals.length;
+      sd = Math.sqrt(plateauVals.reduce((a,b)=>a+(b-mean)*(b-mean),0)/plateauVals.length);
+      cv = sd/mean*100;
+    }
+    steadyWindow = [midStart, midEnd];
+  }
+
+  return { onsetT, onsetVal, peakVal, peakT, rtd50, rtd100, avgRtd, avgRtdWindow,
+    steadinessSD:sd, steadinessCV:cv, steadyWindow, samples: ts.length };
+}
+
+// ---------- Chart ----------
+const mainChart = new Chart(el('mainChart'), {
+  type:'line',
+  data:{ datasets:[
+    { label:'Healthy', data:[], borderColor:'#1E2761', borderWidth:2, pointRadius:0, tension:0, parsing:false },
+    { label:'Knee OA', data:[], borderColor:'#C1443C', borderWidth:2, pointRadius:0, tension:0, parsing:false },
+    { label:'Healthy onset', data:[], borderColor:'#1E2761', borderWidth:2, borderDash:[6,4], pointRadius:0, parsing:false },
+    { label:'OA onset', data:[], borderColor:'#C1443C', borderWidth:2, borderDash:[6,4], pointRadius:0, parsing:false },
+  ]},
+  options:{ animation:false, responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{ x:{ type:'linear', min:0, max:DURATION, title:{display:true,text:'time (s)'} },
+              y:{ min:-10, max:210, title:{display:true,text:'torque (Nm)'} } } }
+});
+
+function fmt(v, d){ return v===null||v===undefined ? '—' : v.toFixed(d); }
+function ratioCell(h, o, higherIsBetter){
+  if(h===null||o===null||o===0) return '<span class="ratio-good">—</span>';
+  const r = h/o;
+  const cls = (higherIsBetter ? r>=1.5 : r<=0.67) ? 'ratio-bad' : 'ratio-good';
+  return `<span class="${cls}">${r.toFixed(2)}×</span>`;
+}
+
+function render(){
+  const fs = parseFloat(el('fs').value);
+  const cutoff = parseFloat(el('cutoff').value);
+  const thresh = parseFloat(el('thresh').value);
+  const humOn = el('hum').checked;
+  el('fsVal').textContent = fs + ' Hz';
+  el('cutoffVal').textContent = cutoff + ' Hz';
+  el('threshVal').textContent = thresh.toFixed(1) + ' Nm';
+
+  const sampH = downsample(denseHealthy, fs, humOn);
+  const sampOA = downsample(denseOA, fs, humOn);
+  const filtH = zeroLagLowPass(sampH.ys, fs, cutoff);
+  const filtOA = zeroLagLowPass(sampOA.ys, fs, cutoff);
+  const rH = analyze(sampH.ts, filtH, thresh);
+  const rOA = analyze(sampOA.ts, filtOA, thresh);
+
+  mainChart.data.datasets[0].data = sampH.ts.map((t,i)=>({x:t,y:filtH[i]}));
+  mainChart.data.datasets[1].data = sampOA.ts.map((t,i)=>({x:t,y:filtOA[i]}));
+  mainChart.data.datasets[2].data = rH.onsetT!==null ? [{x:rH.onsetT,y:-10},{x:rH.onsetT,y:210}] : [];
+  mainChart.data.datasets[3].data = rOA.onsetT!==null ? [{x:rOA.onsetT,y:-10},{x:rOA.onsetT,y:210}] : [];
+  mainChart.update();
+
+  const rows = [
+    { name:'Peak torque (Nm)', h:rH.peakVal, o:rOA.peakVal, d:1, higherBetter:true },
+    { name:'RTD 0–50 ms (Nm/s)', h:rH.rtd50, o:rOA.rtd50, d:0, higherBetter:true },
+    { name:'RTD 0–100 ms (Nm/s)', h:rH.rtd100, o:rOA.rtd100, d:0, higherBetter:true },
+    { name:'Average RTD, middle 60% onset–to–peak (Nm/s)', h:rH.avgRtd, o:rOA.avgRtd, d:0, higherBetter:true },
+    { name:'Torque steadiness, SD (Nm)', h:rH.steadinessSD, o:rOA.steadinessSD, d:2, higherBetter:false },
+    { name:'Torque steadiness, CV (%)', h:rH.steadinessCV, o:rOA.steadinessCV, d:2, higherBetter:false },
+  ];
+  el('metricsBody').innerHTML = rows.map(r => `
+    <tr class="metric-healthy metric-oa">
+      <td>${r.name}</td>
+      <td class="num">${fmt(r.h, r.d)}</td>
+      <td class="num">${fmt(r.o, r.d)}</td>
+      <td class="num">${ratioCell(r.h, r.o, r.higherBetter)}</td>
+    </tr>`).join('');
+
+  const items = [];
+  items.push({cls:'info', html:`<b>${rH.samples}</b> samples per trial at ${fs} Hz. Onset detected at ${fmt(rH.onsetT,3)}s (healthy, navy dashed line) and ${fmt(rOA.onsetT,3)}s (OA, red dashed line) using a ${thresh} Nm threshold.`});
+  if(fs < 300 || cutoff < 50){
+    items.push({cls:'warn', html:`At this sampling rate / cutoff, early RTD (0–50 ms especially) is likely <b>underestimated for both knees</b> — and the gap between healthy and OA may look smaller than it really is. Compare against the high-fidelity preset to check.`});
+  } else {
+    items.push({cls:'good', html:`This acquisition setting is fine-grained enough that early RTD shouldn't be meaningfully distorted by sampling or filtering alone.`});
+  }
+  if(rH.rtd50!==null && rOA.rtd50!==null){
+    const ratio = rH.rtd50/rOA.rtd50;
+    items.push({cls:'info', html:`Right now, healthy RTD 0–50ms is <b>${ratio.toFixed(1)}×</b> the OA value. Try the two presets back-to-back and watch this number change — same two knees, same underlying difference, different apparent conclusion.`});
+  }
+  if(thresh < 2){
+    const early = (rH.onsetT!==null && rH.onsetT < T0-0.05) || (rOA.onsetT!==null && rOA.onsetT < T0-0.05);
+    if(early) items.push({cls:'warn', html:`At a ${thresh.toFixed(1)} Nm threshold, onset is triggering on <b>baseline sensor noise</b>, not the real contraction rise — this is exactly the failure mode White et al. (2024) describe with their lowest tested threshold (0.1 Nm), which systematically underestimated RTD100 by ~20%. A negative or nonsensical RTD value here is a symptom of that, not a bug.`});
+  }
+  if(humOn && thresh < HUM_AMP + 1){
+    const early = (rH.onsetT!==null && rH.onsetT < T0-0.05) || (rOA.onsetT!==null && rOA.onsetT < T0-0.05);
+    if(early) items.push({cls:'warn', html:`With 60 Hz interference on and a low threshold, the onset marker may be triggering on <b>noise, not the real contraction</b> — look at where the dashed line actually lands relative to where the curve visibly starts rising. Try raising the threshold above the hum amplitude.`});
+  }
+  if(humOn && fs < 130){
+    items.push({cls:'warn', html:`At ${fs} Hz, 60 Hz interference is <b>above the Nyquist rate</b> (${(fs/2).toFixed(0)} Hz) — it's being aliased into a slower, different-looking wobble rather than a clean 60 Hz oscillation. This is the same aliasing idea from earlier in the semester, just showing up as noise instead of the signal itself.`});
+  }
+  el('callouts').innerHTML = items.map(it=>`<div class="callout ${it.cls}">${it.html}</div>`).join('');
+}
+
+el('presetGold').addEventListener('click', ()=>{
+  el('fs').value=2222; el('cutoff').value=150; el('thresh').value=1; render();
+});
+el('presetClinic').addEventListener('click', ()=>{
+  el('fs').value=100; el('cutoff').value=10; el('thresh').value=5; render();
+});
+['fs','cutoff','thresh'].forEach(id => el(id).addEventListener('input', render));
+el('hum').addEventListener('change', render);
+
+render();
+
+// ============================================================
+// ISOKINETIC TAB
+// ============================================================
+const ROM_DEG = 90, ACCEL_TIME = 0.12, REVERSAL_PAUSE = 0.15;
+const VELOCITIES = [60, 180, 300];
+const VEL_COLORS = { 60:'#1E2761', 180:'#C1443C', 300:'#E8AA42' };
+
+function timingsFor(v){
+  const accelAngle = v*ACCEL_TIME;
+  const constAngle = Math.max(0, ROM_DEG - 2*accelAngle);
+  const constTime = constAngle/v;
+  const singleDirTime = ACCEL_TIME + constTime + ACCEL_TIME;
+  return { accelAngle, constAngle, constTime, singleDirTime, constFraction: constAngle/ROM_DEG };
+}
+function extPeakTorque(v){ return 260*200/(200+v); }
+function flexPeakTorque(v){ return 150*220/(220+v); }
+
+function directionTorqueBase(t, singleDirTime, peakTorque, velocity){
+  const f = t/singleDirTime;
+  let torque = peakTorque * Math.sin(Math.PI*f);
+  const spikeAmp = peakTorque * 0.12 * (velocity/60);
+  const spikeWidth = ACCEL_TIME/3;
+  const d = t - ACCEL_TIME;
+  torque += spikeAmp * Math.exp(-(d*d)/(2*spikeWidth*spikeWidth));
+  return torque;
+}
+function fullCycleTorqueBase(t, velocity, timing){
+  const extPeak = extPeakTorque(velocity), flexPeak = flexPeakTorque(velocity);
+  const T_ext = timing.singleDirTime;
+  const T_flex_start = T_ext + REVERSAL_PAUSE;
+  const T_flex_end = T_flex_start + timing.singleDirTime;
+  if(t < T_ext) return directionTorqueBase(t, T_ext, extPeak, velocity);
+  if(t < T_flex_start) return 0;
+  if(t < T_flex_end) return -directionTorqueBase(t-T_flex_start, timing.singleDirTime, flexPeak, velocity);
+  return 0;
+}
+
+function generateIkoDense(velocity, seed, nPoints, totalDur){
+  const rng = makeRng(seed);
+  const timing = timingsFor(velocity);
+  const ts=[], ys=[];
+  for(let i=0;i<nPoints;i++){
+    const t = i/(nPoints-1)*totalDur;
+    let v = fullCycleTorqueBase(t, velocity, timing);
+    let u=0; for(let k=0;k<4;k++) u+=rng();
+    v += 1.2*(u/4-0.5)*3.2;
+    ts.push(t); ys.push(v);
+  }
+  return { ts, ys, timing };
+}
+
+const IKO_NPTS = 8000;
+const ikoDense = {};
+VELOCITIES.forEach((v,i) => {
+  const timing = timingsFor(v);
+  const totalDur = 2*timing.singleDirTime + REVERSAL_PAUSE + 0.15;
+  ikoDense[v] = generateIkoDense(v, 100+i, IKO_NPTS, totalDur);
+  ikoDense[v].totalDur = totalDur;
+  ikoDense[v].hum = ikoDense[v].ts.map(t => humAt(t));
+});
+const IKO_XMAX = Math.max(...VELOCITIES.map(v=>ikoDense[v].totalDur)) * 1.02;
+
+function ikoDownsample(dense, fs, totalDur, humOn){
+  const outTs=[], outYs=[];
+  const n = Math.floor(totalDur*fs);
+  for(let k=0;k<=n;k++){
+    const t = k/fs;
+    if(t>totalDur) break;
+    const idx = Math.min(dense.ts.length-1, Math.round(t/totalDur*(dense.ts.length-1)));
+    let v = dense.ys[idx];
+    if(humOn) v += dense.hum[idx];
+    outTs.push(t); outYs.push(v);
+  }
+  return {ts:outTs, ys:outYs};
+}
+
+function analyzeIko(ts, ys, timing){
+  const T_ext = timing.singleDirTime;
+  const T_flex_start = T_ext + REVERSAL_PAUSE;
+  let peakExt=-Infinity, peakExtT=0, peakFlex=Infinity, peakFlexT=0;
+  for(let i=0;i<ts.length;i++){
+    if(ts[i] <= T_ext && ys[i] > peakExt){ peakExt=ys[i]; peakExtT=ts[i]; }
+    if(ts[i] >= T_flex_start && ys[i] < peakFlex){ peakFlex=ys[i]; peakFlexT=ts[i]-T_flex_start; }
+  }
+  const peakFlexAbs = Math.abs(peakFlex);
+  const hq = peakExt>0 ? (peakFlexAbs/peakExt*100) : null;
+  const extArtifactDominated = peakExtT < ACCEL_TIME*1.5;
+  const flexArtifactDominated = peakFlexT < ACCEL_TIME*1.5;
+  return { peakExt, peakExtT, peakFlexAbs, peakFlexT, hq, extArtifactDominated, flexArtifactDominated };
+}
+
+const ikoChart = new Chart(el('ikoChart'), {
+  type:'line',
+  data:{ datasets: VELOCITIES.map(v => ({
+    label: v+'°/s', data:[], borderColor:VEL_COLORS[v], borderWidth:2, pointRadius:0, tension:0, parsing:false,
+  })) },
+  options:{ animation:false, responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{ x:{ type:'linear', min:0, max:IKO_XMAX, title:{display:true,text:'time (s)'} },
+              y:{ title:{display:true,text:'torque (Nm)  [+ext / −flex]'} } } }
+});
+
+function ikoFmt(v,d){ return v===null||v===undefined ? '—' : v.toFixed(d); }
+
+function renderIko(){
+  const fs = parseFloat(el('ikoFs').value);
+  const cutoff = parseFloat(el('ikoCutoff').value);
+  const humOn = el('ikoHum').checked;
+  el('ikoFsVal').textContent = fs + ' Hz';
+  el('ikoCutoffVal').textContent = cutoff + ' Hz';
+
+  const results = {};
+  VELOCITIES.forEach((v,i) => {
+    const dense = ikoDense[v];
+    const samp = ikoDownsample(dense, fs, dense.totalDur, humOn);
+    const filtered = zeroLagLowPass(samp.ys, fs, cutoff);
+    ikoChart.data.datasets[i].data = samp.ts.map((t,j)=>({x:t,y:filtered[j]}));
+    results[v] = analyzeIko(samp.ts, filtered, dense.timing);
+  });
+  ikoChart.update();
+
+  const rows = [
+    { name:'Peak extension torque (Nm)', get:r=>r.peakExt, d:1 },
+    { name:'Peak flexion torque (Nm)', get:r=>r.peakFlexAbs, d:1 },
+    { name:'H:Q ratio (%)', get:r=>r.hq, d:1 },
+    { name:'Total cycle time (s)', get:r=>null, d:2, useTiming:true },
+    { name:'% of ROM at true constant velocity', get:r=>null, d:0, useConstFrac:true },
+  ];
+  el('ikoMetricsBody').innerHTML = rows.map(row => {
+    const cells = VELOCITIES.map(v => {
+      const timing = timingsFor(v);
+      let val;
+      if(row.useTiming) val = 2*timing.singleDirTime + REVERSAL_PAUSE;
+      else if(row.useConstFrac) val = timing.constFraction*100;
+      else val = row.get(results[v]);
+      return `<td class="num">${ikoFmt(val, row.d)}</td>`;
+    }).join('');
+    return `<tr><td>${row.name}</td>${cells}</tr>`;
+  }).join('');
+
+  const items = [];
+  const flagged60 = results[60].extArtifactDominated;
+  const flagged180 = results[180].extArtifactDominated;
+  const flagged300 = results[300].extArtifactDominated;
+  if(!flagged60 && (flagged180 || flagged300)){
+    items.push({cls:'warn', html:`At ${[180,300].filter(v=>results[v].extArtifactDominated).join(' and ')}°/s, the <b>recorded peak extension torque is occurring right at the acceleration spike</b>, not at mid-range-of-motion where 60°/s peaks. That "peak torque" may be measuring how hard the motor had to grab the limb, not the muscle's true capability at speed.`});
+  }
+  if(results[300].peakExt > results[180].peakExt){
+    items.push({cls:'warn', html:`Look closely at the table: recorded peak torque does <b>not</b> decrease steadily from 180°/s to 300°/s, even though true muscular capability does. Once the acceleration artifact dominates the recorded peak, going faster can make the number go back up — the opposite of what the torque-velocity relationship predicts.`});
+  }
+  items.push({cls:'info', html:`As velocity increases, less of the 90° range of motion is spent at true constant velocity — at 300°/s, over 75% of the range is acceleration or deceleration, not steady-state isokinetic contraction.`});
+  if(fs < 200){
+    items.push({cls:'warn', html:`At ${fs} Hz, the fastest cycles (180–300°/s) complete in well under a second — a low sampling rate here can blur or miss the acceleration spike and shift where the peak appears to land.`});
+  }
+  if(humOn && fs < 130){
+    items.push({cls:'warn', html:`At ${fs} Hz with 60 Hz interference on, the hum is <b>above the Nyquist rate</b> (${(fs/2).toFixed(0)} Hz) and aliases into a slower wobble rather than a clean 60 Hz oscillation — same aliasing idea from earlier in the semester, now riding on top of an isokinetic trace instead of an isometric one.`});
+  }
+  el('ikoCallouts').innerHTML = items.map(it=>`<div class="callout ${it.cls}">${it.html}</div>`).join('');
+}
+
+['ikoFs','ikoCutoff'].forEach(id => el(id).addEventListener('input', renderIko));
+el('ikoHum').addEventListener('change', renderIko);
+renderIko();
+
+// ============================================================
+// ANALYZE YOUR OWN DATA TAB
+// ============================================================
+
+// ---- parsing ----
+function parseCSVText(text){
+  const lines = text.split(/\r\n|\n|\r/).filter(l => l.trim().length > 0);
+  const rows = lines.map(l => l.split(',').map(c => c.trim()));
+  const firstRowNumeric = rows[0].every(c => c !== '' && !isNaN(parseFloat(c)));
+  const dataRows = firstRowNumeric ? rows : rows.slice(1);
+  return dataRows.map(r => r.map(c => parseFloat(c)));
+}
+function parseXLSXBuffer(arrayBuffer){
+  const wb = XLSX.read(arrayBuffer, {type:'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1});
+  const isNum = c => typeof c === 'number' || (typeof c === 'string' && c.trim()!=='' && !isNaN(parseFloat(c)));
+  const firstRowNumeric = rows[0].every(isNum);
+  const dataRows = firstRowNumeric ? rows : rows.slice(1);
+  return dataRows.map(r => r.map(c => typeof c === 'number' ? c : parseFloat(c)));
+}
+function estimateFsUp(timeCol){
+  const diffs = [];
+  for(let i=1;i<timeCol.length;i++) diffs.push(timeCol[i]-timeCol[i-1]);
+  diffs.sort((a,b)=>a-b);
+  const median = diffs[Math.floor(diffs.length/2)];
+  return 1/median;
+}
+function trapezoidalIntegral(xs, ys){
+  let sum=0;
+  for(let i=1;i<xs.length;i++) sum += 0.5*(ys[i]+ys[i-1])*(xs[i]-xs[i-1]);
+  return sum;
+}
+function findOnsetIdxUp(ys, threshold){
+  for(let i=0;i<ys.length;i++) if(ys[i]>=threshold) return i;
+  return -1;
+}
+function findGlobalPeakUp(ts, ys){
+  let best=-Infinity, bestI=0, worst=Infinity, worstI=0;
+  for(let i=0;i<ys.length;i++){
+    if(ys[i]>best){ best=ys[i]; bestI=i; }
+    if(ys[i]<worst){ worst=ys[i]; worstI=i; }
+  }
+  return { max:{val:best, t:ts[bestI], idx:bestI}, min:{val:worst, t:ts[worstI], idx:worstI} };
+}
+
+// ---- sample data generators ----
+function makeUpRng(seed){ let s=seed; return function(){ s=(s*9301+49297)%233280; return s/233280; }; }
+function generateSampleIsometricUp(){
+  const fs = 1000, dur = 3.5, t0 = 0.5;
+  const rng = makeUpRng(Date.now()%100000);
+  const ts=[], ys=[];
+  const n = Math.floor(dur*fs);
+  for(let k=0;k<=n;k++){
+    const t = k/fs;
+    let v = t<t0 ? 0 : 165*(1-Math.exp(-(t-t0)/0.06));
+    let u=0; for(let j=0;j<4;j++) u+=rng();
+    v += 1.4*(u/4-0.5)*3.2;
+    ts.push(t); ys.push(v);
+  }
+  return { ts, ys, angle:null, dataType:'isometric', fs };
+}
+function generateSampleIsokineticUp(){
+  const fs = 500, velocity = 60, rom = 90, accelTime = 0.12, pause = 0.15, nCycles = 5;
+  const singleDirTime = rom/velocity;
+  const rng = makeUpRng(Date.now()%100000 + 7);
+  const rest = 1.0;
+  const cycleLen = 2*singleDirTime + 2*pause;
+  const totalDur = 2*rest + nCycles*cycleLen;
+  const ts=[], ys=[], angleArr=[];
+  const n = Math.floor(totalDur*fs);
+  const extBase = 260*200/(200+velocity), flexBase = 150*220/(220+velocity);
+  function dirTorque(tl, peakTorque){
+    const f = tl/singleDirTime;
+    let torque = peakTorque*Math.sin(Math.PI*f);
+    const spikeAmp = peakTorque*0.12*(velocity/60);
+    const spikeWidth = accelTime/3;
+    const d = tl - accelTime;
+    torque += spikeAmp*Math.exp(-(d*d)/(2*spikeWidth*spikeWidth));
+    return torque;
+  }
+  for(let k=0;k<=n;k++){
+    const t = k/fs;
+    let torque=0, angle=rom;
+    if(t>=rest && t<rest+nCycles*cycleLen){
+      const tc = t-rest;
+      const cycleIdx = Math.floor(tc/cycleLen);
+      const tl0 = tc - cycleIdx*cycleLen;
+      const fatigue = 1 - 0.03*cycleIdx;
+      if(tl0 < singleDirTime){
+        torque = dirTorque(tl0, extBase*fatigue);
+        angle = rom*(1-tl0/singleDirTime);
+      } else if(tl0 < singleDirTime+pause){
+        torque = 0; angle = 0;
+      } else if(tl0 < 2*singleDirTime+pause){
+        const tl = tl0-singleDirTime-pause;
+        torque = -dirTorque(tl, flexBase*fatigue);
+        angle = rom*(tl/singleDirTime);
+      } else { torque = 0; angle = rom; }
+    }
+    let u=0; for(let j=0;j<4;j++) u+=rng();
+    torque += 1.2*(u/4-0.5)*3.2;
+    ts.push(t); ys.push(torque); angleArr.push(angle);
+  }
+  return { ts, ys, angle:angleArr, dataType:'isokinetic', fs };
+}
+
+// ---- multi-cycle segmentation (for isokinetic peak-per-rep analysis) ----
+function segmentCycles(ts, angleArr, fs, minPhaseDuration, minAngleChange){
+  const smoothed = zeroLagLowPass(angleArr, fs, 8);
+  const windowN = Math.max(1, Math.round(0.08*fs));
+  const dir = new Array(ts.length).fill(0);
+  for(let i=0;i<ts.length;i++){
+    const j = Math.min(ts.length-1, i+windowN);
+    const d = smoothed[j]-smoothed[i];
+    dir[i] = d>0.05 ? 1 : (d<-0.05 ? -1 : 0);
+  }
+  const rawPhases = [];
+  let curDir=0, startIdx=0;
+  for(let i=0;i<ts.length;i++){
+    if(dir[i]===0) continue;
+    if(dir[i]!==curDir){
+      if(curDir!==0) rawPhases.push({dir:curDir, start:startIdx, end:i-1});
+      curDir=dir[i]; startIdx=i;
+    }
+  }
+  if(curDir!==0) rawPhases.push({dir:curDir, start:startIdx, end:ts.length-1});
+  return rawPhases.filter(p => {
+    const dur = ts[p.end]-ts[p.start];
+    const angleChange = Math.abs(smoothed[p.end]-smoothed[p.start]);
+    return dur>=minPhaseDuration && angleChange>=minAngleChange;
+  });
+}
+function analyzePhasesUp(ts, ys, phases){
+  const results = phases.map(p => {
+    let best=0, bestAbs=-1;
+    for(let i=p.start;i<=p.end;i++){ if(Math.abs(ys[i])>bestAbs){ bestAbs=Math.abs(ys[i]); best=ys[i]; } }
+    return { peak:best, tStart:ts[p.start], tEnd:ts[p.end] };
+  });
+  const positive = results.filter(r=>r.peak>0).map(r=>r.peak);
+  const negative = results.filter(r=>r.peak<0).map(r=>r.peak);
+  return {
+    results, nPositive: positive.length, nNegative: negative.length,
+    absPeakPos: positive.length? Math.max(...positive) : null,
+    avgPeakPos: positive.length? positive.reduce((a,b)=>a+b,0)/positive.length : null,
+    absPeakNeg: negative.length? Math.min(...negative) : null,
+    avgPeakNeg: negative.length? negative.reduce((a,b)=>a+b,0)/negative.length : null,
+  };
+}
+
+// ---- state ----
+let upData = null;
+let upManualMark = null;
+
+const upRawChart = new Chart(el('upRawChart'), {
+  type:'line',
+  data:{ datasets:[
+    { label:'raw', data:[], borderColor:'#B9C4DD', borderWidth:1.5, pointRadius:0, tension:0, parsing:false },
+    { label:'onset', data:[], borderColor:'#E8AA42', borderWidth:2, borderDash:[6,4], pointRadius:0, parsing:false },
+  ]},
+  options:{ animation:false, responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{ x:{ type:'linear', title:{display:true,text:'time (s)'} }, y:{ title:{display:true,text:'torque'} } } }
+});
+const upFiltChart = new Chart(el('upFiltChart'), {
+  type:'line',
+  data:{ datasets:[
+    { label:'filtered', data:[], borderColor:'#1E2761', borderWidth:2, pointRadius:0, tension:0, parsing:false },
+    { label:'automated peak', data:[], showLine:false, pointStyle:'rectRot', pointRadius:7, pointBorderColor:'#E8AA42', pointBackgroundColor:'#E8AA42', parsing:false },
+    { label:'your mark', data:[], showLine:false, pointStyle:'circle', pointRadius:7, pointBorderColor:'#C1443C', pointBackgroundColor:'rgba(193,68,60,0.2)', borderWidth:2, parsing:false },
+    { label:'onset', data:[], borderColor:'#E8AA42', borderWidth:2, borderDash:[6,4], pointRadius:0, parsing:false },
+  ]},
+  options:{ animation:false, responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    onClick:(evt, elements, chart) => {
+      const canvasX = evt.x;
+      const dataX = chart.scales.x.getValueForPixel(canvasX);
+      if(dataX===undefined || dataX===null || !upData) return;
+      const filtered = upData._lastFiltered;
+      const ts = upData._lastTs;
+      if(!filtered || !ts) return;
+      let bestI=0, bestD=Infinity;
+      for(let i=0;i<ts.length;i++){
+        const d = Math.abs(ts[i]-dataX);
+        if(d<bestD){ bestD=d; bestI=i; }
+      }
+      upManualMark = { t: ts[bestI], val: filtered[bestI] };
+      renderUpload();
+    },
+    scales:{ x:{ type:'linear', title:{display:true,text:'time (s)'} }, y:{ title:{display:true,text:'torque'} } } }
+});
+
+function dataRangeUp(arr){
+  let min=Infinity, max=-Infinity;
+  for(const v of arr){ if(v<min) min=v; if(v>max) max=v; }
+  if(!isFinite(min) || !isFinite(max)) return [0,1];
+  const pad = (max-min)*0.08 || Math.abs(max)*0.1 || 1;
+  return [min-pad, max+pad];
+}
+
+function upFmt(v,d){ return v===null||v===undefined||!isFinite(v) ? '—' : v.toFixed(d); }
+
+function computeUpMetrics(ts, ys, angleArr, dataType, onsetIdx, peakRef){
+  const out = {};
+  if(onsetIdx<0 || !peakRef){ return out; }
+  const onsetT = ts[onsetIdx], onsetVal = ys[onsetIdx];
+  out.peak = peakRef.val;
+  out.rtd50 = interpAtTime(ts,ys,onsetT+0.05)!==undefined ? (interpAtTime(ts,ys,onsetT+0.05)-onsetVal)/0.05 : null;
+  out.rtd100 = (interpAtTime(ts,ys,onsetT+0.1)-onsetVal)/0.1;
+  if(peakRef.t>onsetT){
+    const winStart = onsetT + 0.2*(peakRef.t-onsetT);
+    const winEnd = onsetT + 0.8*(peakRef.t-onsetT);
+    out.avgRtd = (interpAtTime(ts,ys,winEnd)-interpAtTime(ts,ys,winStart))/(winEnd-winStart);
+  } else out.avgRtd = null;
+  // work / integral, from onset to peak reference index
+  let peakIdx = 0, bestD=Infinity;
+  for(let i=0;i<ts.length;i++){ const d=Math.abs(ts[i]-peakRef.t); if(d<bestD){bestD=d; peakIdx=i;} }
+  const lo = Math.min(onsetIdx, peakIdx), hi = Math.max(onsetIdx, peakIdx);
+  if(dataType==='isokinetic' && angleArr){
+    // integrate over cumulative absolute angular displacement, so work done by a concentric
+    // contraction is positive whether the angle increases or decreases during the movement
+    const seg = angleArr.slice(lo,hi+1);
+    const disp = [0];
+    for(let i=1;i<seg.length;i++) disp.push(disp[i-1] + Math.abs(seg[i]-seg[i-1])*Math.PI/180);
+    out.work = trapezoidalIntegral(disp, ys.slice(lo,hi+1));
+    out.workLabel = 'Work (∫τ dθ, onset→peak ref.)'; out.workUnit = 'J';
+  } else {
+    out.work = trapezoidalIntegral(ts.slice(lo,hi+1), ys.slice(lo,hi+1));
+    out.workLabel = 'Torque-time integral (onset→peak ref.)'; out.workUnit = 'Nm·s';
+  }
+  // steadiness
+  const midStart = onsetT+1.0, midEnd = onsetT+2.0;
+  const plateauVals = ys.filter((v,i)=>ts[i]>=midStart && ts[i]<=midEnd);
+  if(plateauVals.length>5){
+    const mean = plateauVals.reduce((a,b)=>a+b,0)/plateauVals.length;
+    const sd = Math.sqrt(plateauVals.reduce((a,b)=>a+(b-mean)**2,0)/plateauVals.length);
+    out.steadySD = sd; out.steadyCV = sd/mean*100;
+  } else { out.steadySD = null; out.steadyCV = null; }
+  return out;
+}
+
+function renderUpload(){
+  const cutoff = parseFloat(el('upCutoff').value);
+  const thresh = parseFloat(el('upThresh').value);
+  el('upCutoffVal').textContent = cutoff + ' Hz';
+  el('upThreshVal').textContent = thresh.toFixed(1) + ' Nm';
+
+  const isIko = el('upTypeIko').checked;
+  el('mcSteadyRow').style.display = isIko ? 'none' : 'flex';
+  el('mcWorkLabel').textContent = isIko ? 'Work (∫τ dθ)' : 'Torque-time integral';
+  el('upFlexBox').style.display = isIko ? 'block' : 'none';
+  el('mcPeakRow').style.display = isIko ? 'none' : 'flex';
+  ['mcAbsExtRow','mcAvgExtRow','mcAbsFlexRow','mcAvgFlexRow'].forEach(id => el(id).style.display = isIko ? 'flex' : 'none');
+
+  if(!upData){ el('upCallouts').innerHTML = '<div class="callout info">Load a file or try a sample dataset to begin.</div>'; return; }
+
+  const fs = upData.fs;
+  const filtered = zeroLagLowPass(upData.ys, fs, Math.min(cutoff, fs/2 - 1));
+  upData._lastFiltered = filtered;
+  upData._lastTs = upData.ts;
+
+  const onsetIdx = findOnsetIdxUp(filtered, thresh);
+  const peaks = findGlobalPeakUp(upData.ts, filtered);
+
+  // Multi-cycle segmentation, isokinetic only (needs angle column)
+  let cyc = null;
+  if(isIko && upData.angle){
+    const phases = segmentCycles(upData.ts, upData.angle, fs, 0.15, 10);
+    cyc = analyzePhasesUp(upData.ts, filtered, phases);
+    el('upCycleInfo').style.display = 'block';
+    el('upCycleInfo').textContent = `Detected ${cyc.nPositive} extension phase(s) and ${cyc.nNegative} flexion phase(s) in this file.`;
+  } else {
+    el('upCycleInfo').style.display = 'none';
+  }
+
+  // Automated peak = maximum within the first contraction: from onset to the end of the first
+  // extension phase (isokinetic) or to onset + 1 s (isometric), the same bound the isometric tab uses.
+  // A whole-file maximum can land anywhere on a flat plateau, which makes average RTD meaningless.
+  let autoPeakRef = { val: peaks.max.val, t: peaks.max.t };
+  if(onsetIdx>=0){
+    const t0 = upData.ts[onsetIdx];
+    const firstExt = cyc ? cyc.results.find(r => r.peak>0 && r.tEnd>t0) : null;
+    const tEnd = firstExt ? firstExt.tEnd : t0 + 1.0;
+    let best = -Infinity, bestT = t0;
+    for(let i=onsetIdx;i<upData.ts.length && upData.ts[i]<=tEnd;i++){ if(filtered[i]>best){ best=filtered[i]; bestT=upData.ts[i]; } }
+    autoPeakRef = { val: best, t: bestT };
+  }
+  el('upAutoPeak').textContent = upFmt(autoPeakRef.val,1) + ' at t=' + upFmt(autoPeakRef.t,3) + 's';
+  el('upAutoFlex').textContent = upFmt(peaks.min.val,1) + ' at t=' + upFmt(peaks.min.t,3) + 's';
+  el('upManualPeak').textContent = upManualMark ? (upFmt(upManualMark.val,1) + ' at t=' + upFmt(upManualMark.t,3) + 's') : 'Click the filtered chart to mark';
+
+  const useManual = el('upBasisManual').checked && upManualMark;
+  const peakRef = useManual ? upManualMark : autoPeakRef;
+
+  const zFrom = el('upZoomFrom').value, zTo = el('upZoomTo').value;
+  const xMin = zFrom!=='' ? parseFloat(zFrom) : upData.ts[0];
+  const xMax = zTo!=='' ? parseFloat(zTo) : upData.ts[upData.ts.length-1];
+
+  const onsetT = onsetIdx>=0 ? upData.ts[onsetIdx] : null;
+  el('upOnsetVal').textContent = onsetT!==null ? (onsetT.toFixed(3)+' s') : 'not found at this threshold';
+  const [rawMin, rawMax] = dataRangeUp(upData.ys);
+  const [filtMin, filtMax] = dataRangeUp(filtered);
+
+  upRawChart.data.datasets[0].data = upData.ts.map((t,i)=>({x:t,y:upData.ys[i]}));
+  upRawChart.data.datasets[1].data = onsetT!==null ? [{x:onsetT,y:rawMin},{x:onsetT,y:rawMax}] : [];
+  upRawChart.options.scales.x.min = xMin; upRawChart.options.scales.x.max = xMax;
+  upRawChart.update();
+
+  upFiltChart.data.datasets[0].data = upData.ts.map((t,i)=>({x:t,y:filtered[i]}));
+  upFiltChart.data.datasets[1].data = [{x:autoPeakRef.t, y:autoPeakRef.val}];
+  upFiltChart.data.datasets[2].data = upManualMark ? [{x:upManualMark.t, y:upManualMark.val}] : [];
+  upFiltChart.data.datasets[3].data = onsetT!==null ? [{x:onsetT,y:filtMin},{x:onsetT,y:filtMax}] : [];
+  upFiltChart.options.scales.x.min = xMin; upFiltChart.options.scales.x.max = xMax;
+  upFiltChart.update();
+
+  const m = computeUpMetrics(upData.ts, filtered, upData.angle, upData.dataType, onsetIdx, peakRef);
+  const rows = [];
+  if(!isIko && el('mcPeak').checked) rows.push(['Peak torque', upFmt(m.peak,1)]);
+  if(isIko && el('mcAbsExt').checked) rows.push(['Absolute peak, extension', upFmt(cyc?.absPeakPos,1)]);
+  if(isIko && el('mcAvgExt').checked) rows.push(['Average peak, extension', upFmt(cyc?.avgPeakPos,1)]);
+  if(isIko && el('mcAbsFlex').checked) rows.push(['Absolute peak, flexion', upFmt(cyc?.absPeakNeg,1)]);
+  if(isIko && el('mcAvgFlex').checked) rows.push(['Average peak, flexion', upFmt(cyc?.avgPeakNeg,1)]);
+  if(el('mcRtd50').checked) rows.push(['RTD 0–50 ms (first rep)', upFmt(m.rtd50,0)]);
+  if(el('mcRtd100').checked) rows.push(['RTD 0–100 ms (first rep)', upFmt(m.rtd100,0)]);
+  if(el('mcAvgRtd').checked) rows.push(['Average RTD, middle 60% (first rep)', upFmt(m.avgRtd,0)]);
+  if(el('mcWork').checked) rows.push([m.workLabel || 'Work/integral', upFmt(m.work,1) + (m.workUnit? ' '+m.workUnit : '')]);
+  if(!isIko && el('mcSteady').checked) rows.push(['Torque steadiness SD / CV%', upFmt(m.steadySD,2) + ' / ' + upFmt(m.steadyCV,2) + '%']);
+  el('upMetricsBody').innerHTML = rows.map(r=>`<tr><td>${r[0]}</td><td class="num">${r[1]}</td></tr>`).join('');
+
+  const items = [];
+  if(onsetIdx<0) items.push({cls:'warn', html:'No sample crossed the onset threshold — try lowering it.'});
+  if(isIko && cyc && (cyc.nPositive>1 || cyc.nNegative>1)){
+    items.push({cls:'info', html:`RTD, average RTD, and work above are all computed from the <b>first</b> detected contraction only, using the same onset threshold as the isometric tab. The absolute/average peak values above them, though, reflect <b>all ${cyc.nPositive} extension and ${cyc.nNegative} flexion reps</b> in the file.`});
+    if(cyc.nPositive>1 && cyc.absPeakPos!==null && cyc.avgPeakPos!==null){
+      const dropPct = (cyc.absPeakPos-cyc.avgPeakPos)/cyc.absPeakPos*100;
+      if(dropPct>2) items.push({cls:'warn', html:`Average extension peak is ${dropPct.toFixed(1)}% lower than the single best rep — consistent with mild fatigue across repeated contractions. Reporting only the "absolute peak" from a multi-rep test can hide this.`});
+    }
+  } else if(isIko){
+    items.push({cls:'info', html:`Only one extension/flexion cycle detected — absolute and average peak are the same value here by definition.`});
+  }
+  if(isIko) items.push({cls:'info', html:`Automated "peak flexion" always reports the largest <i>negative</i> value in the file. If you're manually marking a flexion peak, expect your mark to compare against that box, not the extension one.`});
+  if(useManual) items.push({cls:'good', html:'Calculations for RTD/work above are using your manual peak mark, not the automated one.'});
+  else if(upManualMark) items.push({cls:'info', html:'You have a manual mark, but RTD/work calculations are still using the automated peak. Switch the radio button above to compare.'});
+  el('upCallouts').innerHTML = items.map(it=>`<div class="callout ${it.cls}">${it.html}</div>`).join('');
+}
+
+function loadUpFile(file){
+  el('upError').textContent = '';
+  const name = file.name.toLowerCase();
+  const isIko = el('upTypeIko').checked;
+  const finish = (rows) => {
+    if(rows.length < 5){ el('upError').textContent = 'File parsed but has too few rows.'; return; }
+    const nCols = rows[0].length;
+    const ts = rows.map(r=>r[0]);
+    const ys = rows.map(r=>r[1]);
+    const angleArr = (isIko && nCols>=3) ? rows.map(r=>r[2]) : null;
+    if(isIko && nCols<3){ el('upError').textContent = 'Isokinetic selected, but file only has '+nCols+' column(s) — need time, torque, angle.'; }
+    const fs = estimateFsUp(ts);
+    upData = { ts, ys, angle: angleArr, dataType: isIko?'isokinetic':'isometric', fs };
+    upManualMark = null;
+    el('upInfoGrid').style.display = 'grid';
+    el('upFsDetected').textContent = fs.toFixed(1) + ' Hz';
+    el('upNSamples').textContent = ts.length;
+    el('upDuration').textContent = (ts[ts.length-1]-ts[0]).toFixed(2) + ' s';
+    el('upNCols').textContent = nCols;
+    renderUpload();
+  };
+  if(name.endsWith('.csv')){
+    const reader = new FileReader();
+    reader.onload = e => { try{ finish(parseCSVText(e.target.result)); } catch(err){ el('upError').textContent='Could not parse CSV: '+err.message; } };
+    reader.readAsText(file);
+  } else if(name.endsWith('.xlsx')){
+    const reader = new FileReader();
+    reader.onload = e => { try{ finish(parseXLSXBuffer(e.target.result)); } catch(err){ el('upError').textContent='Could not parse XLSX: '+err.message; } };
+    reader.readAsArrayBuffer(file);
+  } else {
+    el('upError').textContent = 'Please upload a .csv or .xlsx file.';
+  }
+}
+
+el('upFileInput').addEventListener('change', e => { if(e.target.files[0]) loadUpFile(e.target.files[0]); });
+el('upSampleIso').addEventListener('click', () => {
+  el('upTypeIso').checked = true;
+  upData = generateSampleIsometricUp(); upManualMark = null;
+  el('upInfoGrid').style.display = 'grid';
+  el('upFsDetected').textContent = upData.fs.toFixed(1) + ' Hz';
+  el('upNSamples').textContent = upData.ts.length;
+  el('upDuration').textContent = (upData.ts[upData.ts.length-1]-upData.ts[0]).toFixed(2) + ' s';
+  el('upNCols').textContent = 2;
+  renderUpload();
+});
+el('upSampleIko').addEventListener('click', () => {
+  el('upTypeIko').checked = true;
+  upData = generateSampleIsokineticUp(); upManualMark = null;
+  el('upInfoGrid').style.display = 'grid';
+  el('upFsDetected').textContent = upData.fs.toFixed(1) + ' Hz';
+  el('upNSamples').textContent = upData.ts.length;
+  el('upDuration').textContent = (upData.ts[upData.ts.length-1]-upData.ts[0]).toFixed(2) + ' s';
+  el('upNCols').textContent = 3;
+  renderUpload();
+});
+el('upResetZoom').addEventListener('click', () => { el('upZoomFrom').value=''; el('upZoomTo').value=''; renderUpload(); });
+el('upClearMark').addEventListener('click', () => { upManualMark=null; renderUpload(); });
+['upCutoff','upThresh','upZoomFrom','upZoomTo'].forEach(id => el(id).addEventListener('input', renderUpload));
+['upBasisAuto','upBasisManual','upTypeIso','upTypeIko','mcPeak','mcRtd50','mcRtd100','mcAvgRtd','mcWork','mcSteady','mcAbsExt','mcAvgExt','mcAbsFlex','mcAvgFlex'].forEach(id => el(id).addEventListener('change', renderUpload));
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+function showTab(tab){
+  el('tabIsometric').classList.toggle('active', tab==='isometric');
+  el('tabIsokinetic').classList.toggle('active', tab==='isokinetic');
+  el('tabUpload').classList.toggle('active', tab==='upload');
+  el('pageIsometric').classList.toggle('hidden', tab!=='isometric');
+  el('pageIsokinetic').classList.toggle('hidden', tab!=='isokinetic');
+  el('pageUpload').classList.toggle('hidden', tab!=='upload');
+}
+el('tabIsometric').addEventListener('click', ()=>showTab('isometric'));
+el('tabIsokinetic').addEventListener('click', ()=>showTab('isokinetic'));
+el('tabUpload').addEventListener('click', ()=>showTab('upload'));
+
+</script>
+
+</body>
+</html>
