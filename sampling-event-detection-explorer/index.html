@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sampling Rate, Event Detection &amp; Aliasing</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#1E2761; --navy-soft:#273575; --ice:#CADCFC; --amber:#E8AA42; --slate:#44546A;
+    --bg:#FAFBFF; --white:#FFFFFF; --red:#C1443C; --red-bg:#FDEDEC; --green:#1C9C6E; --green-bg:#EAF8F2;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:Calibri,'Segoe UI',Helvetica,Arial,sans-serif; background:var(--bg); color:var(--navy); }
+  header{ background:var(--navy); color:var(--white); padding:22px 28px 20px; }
+  header h1{ font-family:Cambria,Georgia,'Times New Roman',serif; margin:0 0 4px; font-size:25px; }
+  header p{ margin:0; color:var(--ice); font-size:14px; max-width:900px; line-height:1.4; }
+  .modes{ display:flex; gap:8px; padding:14px 18px 0; }
+  .mode-btn{ padding:9px 16px; border-radius:8px 8px 0 0; border:1px solid var(--ice); border-bottom:none;
+    background:#EEF2FC; color:var(--slate); font-weight:700; font-size:13px; cursor:pointer; }
+  .mode-btn.active{ background:var(--white); color:var(--navy); }
+  .layout{ display:flex; gap:18px; padding:18px; align-items:flex-start; flex-wrap:wrap; background:var(--white);
+    border:1px solid var(--ice); margin:0 18px 18px; border-radius:0 10px 10px 10px; }
+  .controls{ width:320px; flex-shrink:0; display:flex; flex-direction:column; gap:14px; }
+  .charts{ flex:1; min-width:440px; display:flex; flex-direction:column; gap:14px; }
+  .card{ background:var(--bg); border:1px solid var(--ice); border-radius:10px; padding:15px 17px; }
+  .card h2{ font-size:12.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--amber); margin:0 0 12px; font-weight:700; }
+  .row{ margin-bottom:12px; } .row:last-child{margin-bottom:0;}
+  label{ display:flex; justify-content:space-between; font-size:13px; color:var(--slate); margin-bottom:4px; }
+  label span.val{ color:var(--navy); font-weight:700; }
+  input[type=range]{ width:100%; accent-color:var(--navy); }
+  .ticks{ display:flex; justify-content:space-between; font-size:9.5px; color:#9aa4bd; margin-top:2px;}
+  .btn{ width:100%; padding:8px; border-radius:7px; border:1px solid var(--navy); background:var(--navy); color:#fff;
+    font-weight:700; font-size:13px; cursor:pointer; }
+  .btn:hover{ background:var(--navy-soft); }
+  .chart-card{ background:var(--white); border:1px solid var(--ice); border-radius:10px; padding:12px 16px 6px; }
+  .chart-card h3{ font-size:13px; margin:2px 0 8px; color:var(--navy); }
+  .chart-wrap{ position:relative; height:250px; }
+  .chart-wrap.small{ height:150px; }
+  .metrics{ display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+  .metric{ background:var(--bg); border:1px solid var(--ice); border-radius:9px; padding:9px 8px; text-align:center; }
+  .metric .num{ font-family:Cambria,Georgia,serif; font-weight:700; font-size:19px; color:var(--navy); }
+  .metric .lbl{ font-size:10px; color:var(--slate); margin-top:2px; line-height:1.2; }
+  .metric.bad .num{ color:var(--red); } .metric.good .num{ color:var(--green); }
+  .badge{ display:inline-block; padding:5px 12px; border-radius:20px; font-size:12.5px; font-weight:700; }
+  .badge.bad{ background:var(--red-bg); color:var(--red); border:1px solid var(--red); }
+  .badge.good{ background:var(--green-bg); color:var(--green); border:1px solid var(--green); }
+  .diag{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px; }
+  .callouts{ display:flex; flex-direction:column; gap:8px; }
+  .callout{ border-radius:8px; padding:9px 12px; font-size:13px; line-height:1.35; border:1px solid transparent; }
+  .callout.info{ background:var(--ice); color:var(--navy); border-color:#b7c9ef;}
+  .callout.warn{ background:var(--red-bg); color:var(--navy); border-color:var(--red);}
+  .callout.good{ background:var(--green-bg); color:var(--navy); border-color:var(--green);}
+  .foot{ padding:0 18px 18px; font-size:11px; color:#9aa4bd; }
+  .hidden{ display:none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Sampling Rate, Event Detection &amp; Aliasing</h1>
+  <p>Three ways undersampling can fail you: underestimating a sharp peak, missing discrete events outright, and misreading a periodic signal's frequency entirely. Adjust the sampling rate in each mode and watch the failure happen.</p>
+</header>
+
+<div class="modes">
+  <div class="mode-btn active" id="modeBtnA">Impact peak (vGRF)</div>
+  <div class="mode-btn" id="modeBtnB">Heartbeat detection</div>
+  <div class="mode-btn" id="modeBtnC">Aliasing (periodic signal)</div>
+</div>
+
+<div class="layout">
+
+  <div class="controls">
+
+    <div id="controlsA">
+      <div class="card">
+        <h2>Event</h2>
+        <div class="row">
+          <label>Impact sharpness (rise time) <span class="val" id="riseVal">20 ms</span></label>
+          <input type="range" id="riseMs" min="8" max="50" step="1" value="20">
+          <div class="ticks"><span>Stiff landing</span><span>Soft landing</span></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <h2>Sampling</h2>
+        <div class="row">
+          <label>Sampling rate <span class="val" id="fsAVal">150 Hz</span></label>
+          <input type="range" id="fsA" min="20" max="2000" step="1" value="150">
+          <div class="ticks"><span>20 Hz</span><span>2000 Hz</span></div>
+        </div>
+        <div class="row"><button class="btn" id="resampleA">New trial (random sample timing)</button></div>
+      </div>
+    </div>
+
+    <div id="controlsB" class="hidden">
+      <div class="card">
+        <h2>Event</h2>
+        <div class="row">
+          <label>Heart rate <span class="val" id="hrVal">150 bpm</span></label>
+          <input type="range" id="hr" min="50" max="190" step="1" value="150">
+          <div class="ticks"><span>Resting</span><span>Sprinting</span></div>
+        </div>
+        <div class="row">
+          <label>R-wave width <span class="val" id="widthVal">20 ms</span></label>
+          <input type="range" id="width" min="10" max="40" step="1" value="20">
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <h2>Sampling</h2>
+        <div class="row">
+          <label>Sampling rate <span class="val" id="fsBVal">50 Hz</span></label>
+          <input type="range" id="fsB" min="2" max="500" step="1" value="50">
+          <div class="ticks"><span>2 Hz</span><span>500 Hz</span></div>
+        </div>
+        <div class="row"><button class="btn" id="resampleB">New trial (random sample timing)</button></div>
+      </div>
+    </div>
+
+    <div id="controlsC" class="hidden">
+      <div class="card">
+        <h2>True Rhythm</h2>
+        <div class="row">
+          <label>True frequency <span class="val" id="f0Val">2.5 Hz</span></label>
+          <input type="range" id="f0" min="0.5" max="6" step="0.1" value="2.5">
+          <div class="ticks"><span>slow (30 bpm-ish)</span><span>fast (360 bpm-ish)</span></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <h2>Sampling</h2>
+        <div class="row">
+          <label>Sampling rate <span class="val" id="fsCVal">8 Hz</span></label>
+          <input type="range" id="fsC" min="1" max="30" step="0.1" value="8">
+          <div class="ticks"><span>1 Hz</span><span>30 Hz</span></div>
+        </div>
+        <div class="row"><button class="btn" id="resampleC">New trial (random sample timing)</button></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <h3 id="chartTitle">True impact vs. what you'd actually measure</h3>
+      <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+    </div>
+
+    <!-- Mode A/B: metrics + probability curve -->
+    <div id="reliabilityBlock">
+      <div class="metrics" id="metricsA">
+        <div class="metric"><div class="num" id="mTruePeak">1.00</div><div class="lbl">True peak</div></div>
+        <div class="metric" id="mDetPeakBox"><div class="num" id="mDetPeak">1.00</div><div class="lbl">Detected peak</div></div>
+        <div class="metric" id="mPctErrBox"><div class="num" id="mPctErr">0%</div><div class="lbl">Underestimate</div></div>
+        <div class="metric" id="mTimeErrBox"><div class="num" id="mTimeErr">0 ms</div><div class="lbl">Timing error</div></div>
+        <div class="metric" id="mProbABox"><div class="num" id="mProbA">100%</div><div class="lbl">P(&ge;90% of peak)</div></div>
+      </div>
+      <div class="metrics hidden" id="metricsB">
+        <div class="metric"><div class="num" id="mTrueHR">150</div><div class="lbl">True HR (bpm)</div></div>
+        <div class="metric" id="mDetHRBox"><div class="num" id="mDetHR">150</div><div class="lbl">Detected HR (bpm)</div></div>
+        <div class="metric"><div class="num" id="mTrueCount">15</div><div class="lbl">True beats</div></div>
+        <div class="metric" id="mDetCountBox"><div class="num" id="mDetCount">15</div><div class="lbl">Detected beats</div></div>
+        <div class="metric" id="mProbBBox"><div class="num" id="mProbB">100%</div><div class="lbl">P(all beats found)</div></div>
+      </div>
+      <div class="chart-card" style="margin-top:12px;">
+        <h3>Probability of correct detection vs. sampling rate <span style="font-weight:400;color:#9aa4bd;">(Monte Carlo over random sample timing)</span></h3>
+        <div class="chart-wrap small"><canvas id="probChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Mode C: aliasing diagnosis -->
+    <div id="aliasBlock" class="hidden">
+      <div class="diag">
+        <div class="metric"><div class="num" id="cTrueFreq">2.5</div><div class="lbl">True frequency (Hz)</div></div>
+        <div class="metric"><div class="num" id="cNyquist">10.0</div><div class="lbl">Nyquist needs fs &gt; (Hz, 2 &times; highest component)</div></div>
+        <div class="metric"><div class="num" id="cFs">8.0</div><div class="lbl">Your sampling rate (Hz)</div></div>
+        <div class="metric" id="cAliasBox"><div class="num" id="cAliasFreq">&mdash;</div><div class="lbl" id="cAliasLbl">Apparent frequency (Hz)</div></div>
+      </div>
+      <div style="text-align:center;margin-bottom:6px;"><span class="badge good" id="cBadge">Above Nyquist</span></div>
+    </div>
+
+    <div class="callouts" id="callouts"></div>
+  </div>
+
+</div>
+<div class="foot">Simulated data for demonstration, not real subject recordings. Sampling-rate benchmarks like 180&nbsp;Hz / 1,440&nbsp;Hz for running vGRF are from Renner, Peebles, Socha &amp; Queen (2022, J Biomech); the 90%-of-true-peak success criterion used for the probability curve is drawn directly from that paper's own accuracy threshold.</div>
+
+<script>
+// ============ Core math ============
+function impactTrueSignal(t, t0, amp, riseMs){
+  const tau = (riseMs/1000)/1.5;
+  const d = t-t0;
+  return amp*Math.exp(-(d*d)/(2*tau*tau));
+}
+function impactHighRes(t0, amp, riseMs, duration, nPoints){
+  const ts=[], ys=[];
+  for(let i=0;i<nPoints;i++){ const t=i/(nPoints-1)*duration; ts.push(t); ys.push(impactTrueSignal(t,t0,amp,riseMs)); }
+  return {ts,ys};
+}
+function impactSamples(t0, amp, riseMs, duration, fs, phase){
+  phase=phase||0; const ts=[], ys=[]; const nSamp=Math.floor(duration*fs);
+  for(let k=0;k<=nSamp;k++){ const t=(k+phase)/fs; if(t>duration) break; ts.push(t); ys.push(impactTrueSignal(t,t0,amp,riseMs)); }
+  return {ts,ys};
+}
+function analyzeImpact(t0, amp, riseMs, duration, fs, phase){
+  const {ts,ys}=impactSamples(t0,amp,riseMs,duration,fs,phase);
+  let bestI=0,bestV=-Infinity;
+  for(let i=0;i<ys.length;i++){ if(ys[i]>bestV){bestV=ys[i];bestI=i;} }
+  return { samples:{ts,ys}, truePeak:amp, trueTime:t0, detectedPeak:bestV, detectedTime:ts[bestI],
+    pctError:(amp-bestV)/amp*100, timingErrorMs:Math.abs(ts[bestI]-t0)*1000, nSamples:ts.length };
+}
+function probImpact(t0, amp, riseMs, duration, fs, nTrials, threshold){
+  let s=0;
+  for(let i=0;i<nTrials;i++){ const r=analyzeImpact(t0,amp,riseMs,duration,fs,Math.random()); if(r.detectedPeak>=threshold*amp) s++; }
+  return s/nTrials*100;
+}
+
+function heartbeatTrueSignal(t, beatTimes, widthMs){
+  const sigma=(widthMs/1000)/2.35; let v=0;
+  for(const bt of beatTimes){ const d=t-bt; if(Math.abs(d)<sigma*5) v+=Math.exp(-(d*d)/(2*sigma*sigma)); }
+  return v;
+}
+function beatTimesForHR(hrBpm, duration){
+  const period=60/hrBpm; const beats=[]; let t=period*0.37;
+  while(t<duration){ beats.push(t); t+=period; }
+  return beats;
+}
+function heartbeatHighRes(beatTimes, widthMs, duration, nPoints){
+  const ts=[], ys=[];
+  for(let i=0;i<nPoints;i++){ const t=i/(nPoints-1)*duration; ts.push(t); ys.push(heartbeatTrueSignal(t,beatTimes,widthMs)); }
+  return {ts,ys};
+}
+function heartbeatSamples(beatTimes, widthMs, duration, fs, phase){
+  phase=phase||0; const ts=[], ys=[]; const nSamp=Math.floor(duration*fs);
+  for(let k=0;k<=nSamp;k++){ const t=(k+phase)/fs; if(t>duration) break; ts.push(t); ys.push(heartbeatTrueSignal(t,beatTimes,widthMs)); }
+  return {ts,ys};
+}
+function detectBeats(ts, ys, threshold, refractorySec){
+  const detected=[]; let lastT=-Infinity;
+  for(let i=1;i<ys.length-1;i++){
+    if(ys[i]>threshold && ys[i]>=ys[i-1] && ys[i]>=ys[i+1] && (ts[i]-lastT)>refractorySec){ detected.push(ts[i]); lastT=ts[i]; }
+  }
+  if(ys.length>0 && ys[0]>threshold && (ts[0]-lastT)>refractorySec && (ys.length===1||ys[0]>=ys[1])) detected.unshift(ts[0]);
+  return detected;
+}
+function analyzeHeartbeat(hr, width, duration, fs, phase){
+  const trueBeats=beatTimesForHR(hr,duration);
+  const {ts,ys}=heartbeatSamples(trueBeats,width,duration,fs,phase);
+  const detected=detectBeats(ts,ys,0.5,0.25);
+  const trueCount=trueBeats.length, detectedCount=detected.length;
+  // true HR is the set rate; detected HR comes from the mean interval between detected beats
+  // (a missed beat stretches the interval, so HR is underestimated)
+  const trueHR=hr;
+  const detectedHR = detectedCount>=2 ? 60*(detectedCount-1)/(detected[detectedCount-1]-detected[0]) : NaN;
+  return { samples:{ts,ys}, trueBeats, detected, trueCount, detectedCount, trueHR, detectedHR,
+    errorBpm:detectedHR-trueHR, pctError: trueHR>0?(detectedHR-trueHR)/trueHR*100:0 };
+}
+function probHeartbeat(hr, width, duration, fs, nTrials){
+  let s=0;
+  for(let i=0;i<nTrials;i++){ const r=analyzeHeartbeat(hr,width,duration,fs,Math.random()); if(r.detectedCount===r.trueCount) s++; }
+  return s/nTrials*100;
+}
+
+function periodicTrueSignal(t, f0, amp2nd){
+  return Math.sin(2*Math.PI*f0*t) + amp2nd*Math.sin(2*Math.PI*2*f0*t+0.6);
+}
+function periodicHighRes(f0, amp2nd, duration, nPoints){
+  const ts=[], ys=[];
+  for(let i=0;i<nPoints;i++){ const t=i/(nPoints-1)*duration; ts.push(t); ys.push(periodicTrueSignal(t,f0,amp2nd)); }
+  return {ts,ys};
+}
+function periodicSamples(f0, amp2nd, duration, fs, phase){
+  phase=phase||0; const ts=[], ys=[]; const nSamp=Math.floor(duration*fs);
+  for(let k=0;k<=nSamp;k++){ const t=(k+phase)/fs; if(t>duration) break; ts.push(t); ys.push(periodicTrueSignal(t,f0,amp2nd)); }
+  return {ts,ys};
+}
+function theoreticalAliasFreq(f0, fs){
+  const raw = f0 % fs;
+  return raw <= fs/2 ? raw : fs-raw;
+}
+function measuredFreqFromSamples(ts, ys){
+  let crossings=0, firstT=null, lastT=null;
+  for(let i=1;i<ys.length;i++){
+    if(ys[i-1] < 0 && ys[i] >= 0){
+      const frac = -ys[i-1]/(ys[i]-ys[i-1]);
+      const ct = ts[i-1] + frac*(ts[i]-ts[i-1]);
+      if(firstT===null) firstT=ct;
+      lastT=ct; crossings++;
+    }
+  }
+  if(crossings<2) return null;
+  return (crossings-1)/(lastT-firstT);
+}
+
+// ============ UI state ============
+const T0 = 0.1534, DURATION_A = 0.4, DURATION_B = 6, DURATION_C = 8;
+let phaseA=0.37, phaseB=0.37, phaseC=0.21;
+let mode = 'A';
+const el = id => document.getElementById(id);
+
+// ============ Charts ============
+const mainChart = new Chart(el('mainChart'), {
+  type:'line',
+  data:{ datasets:[
+    { label:'true signal', data:[], borderColor:'#B9C4DD', borderWidth:1.5, pointRadius:0, tension:0.2, parsing:false },
+    { label:'reconstructed from samples', data:[], borderColor:'#1E2761', borderWidth:2, pointRadius:3, pointBackgroundColor:'#1E2761', tension:0, parsing:false },
+    { label:'true event', data:[], showLine:false, pointStyle:'rectRot', pointRadius:7, pointBorderColor:'#C1443C', pointBackgroundColor:'#C1443C', parsing:false },
+    { label:'detected event', data:[], showLine:false, pointStyle:'circle', pointRadius:6, pointBorderColor:'#1C9C6E', pointBackgroundColor:'rgba(28,156,110,0.15)', borderWidth:2, parsing:false },
+  ]},
+  options:{ animation:false, responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ position:'bottom', labels:{ boxWidth:14, font:{size:10} } } },
+    scales:{ x:{ type:'linear', title:{display:true,text:'time (s)'} }, y:{ title:{display:true,text:'amplitude'} } } }
+});
+
+const probChart = new Chart(el('probChart'), {
+  type:'line',
+  data:{ datasets:[
+    { label:'P(correct detection)', data:[], borderColor:'#1E2761', backgroundColor:'rgba(30,39,97,0.08)', fill:true, borderWidth:2, pointRadius:0, tension:0.3, parsing:false },
+    { label:'current setting', data:[], borderColor:'#E8AA42', borderWidth:2, borderDash:[5,4], pointRadius:0, parsing:false },
+  ]},
+  options:{ animation:false, responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{
+      x:{ type:'logarithmic', title:{display:true,text:'sampling rate (Hz)'}, ticks:{ font:{size:9.5} } },
+      y:{ min:0, max:100, title:{display:true,text:'% of trials'} }
+    } }
+});
+
+// ============ Mode A ============
+function runModeA(){
+  const riseMs = parseFloat(el('riseMs').value);
+  const fs = parseFloat(el('fsA').value);
+  el('riseVal').textContent = riseMs+' ms';
+  el('fsAVal').textContent = fs+' Hz';
+
+  const hi = impactHighRes(T0, 1.0, riseMs, DURATION_A, 400);
+  const r = analyzeImpact(T0, 1.0, riseMs, DURATION_A, fs, phaseA);
+
+  mainChart.data.datasets[0].data = hi.ts.map((t,i)=>({x:t,y:hi.ys[i]}));
+  mainChart.data.datasets[1].data = r.samples.ts.map((t,i)=>({x:t,y:r.samples.ys[i]}));
+  mainChart.data.datasets[2].data = [{x:T0,y:1.0}];
+  mainChart.data.datasets[3].data = [{x:r.detectedTime,y:r.detectedPeak}];
+  mainChart.options.scales.x.min=0; mainChart.options.scales.x.max=DURATION_A;
+  mainChart.options.scales.y.min=-0.15; mainChart.options.scales.y.max=1.15;
+  mainChart.update();
+
+  el('mTruePeak').textContent='1.00';
+  el('mDetPeak').textContent=r.detectedPeak.toFixed(2);
+  el('mPctErr').textContent=r.pctError.toFixed(1)+'%';
+  el('mTimeErr').textContent=r.timingErrorMs.toFixed(1)+' ms';
+  const p = probImpact(T0,1.0,riseMs,DURATION_A,fs,300,0.9);
+  el('mProbA').textContent=p.toFixed(0)+'%';
+
+  [el('mDetPeakBox'),el('mPctErrBox'),el('mTimeErrBox'),el('mProbABox')].forEach(b=>b.classList.remove('bad','good'));
+  if(r.pctError>15){ el('mPctErrBox').classList.add('bad'); el('mDetPeakBox').classList.add('bad'); }
+  else if(r.pctError<2){ el('mPctErrBox').classList.add('good'); el('mDetPeakBox').classList.add('good'); }
+  if(r.timingErrorMs>8) el('mTimeErrBox').classList.add('bad'); else if(r.timingErrorMs<2) el('mTimeErrBox').classList.add('good');
+  if(p<60) el('mProbABox').classList.add('bad'); else if(p>90) el('mProbABox').classList.add('good');
+
+  const fsPoints = [20,30,40,55,75,100,130,170,220,290,380,500,650,850,1100,1450,2000];
+  const probData = fsPoints.map(f=>({x:f, y:probImpact(T0,1.0,riseMs,DURATION_A,f,80,0.9)}));
+  probChart.data.datasets[0].data = probData;
+  probChart.data.datasets[1].data = [{x:fs,y:0},{x:fs,y:100}];
+  probChart.options.scales.x.min=20; probChart.options.scales.x.max=2000;
+  probChart.update();
+
+  const items=[];
+  items.push({cls:'info', html:`<b>${r.nSamples}</b> samples fell within this 400&nbsp;ms window at ${fs}&nbsp;Hz. Across many random trials at this rate, only <b>${p.toFixed(0)}%</b> capture at least 90% of the true peak &mdash; that's the same accuracy bar Renner et al. (2022) used for running vGRF.`});
+  if(p<60) items.push({cls:'warn', html:`Below ~90% probability, you're not measuring the true peak reliably &mdash; you're measuring it <i>sometimes</i>, depending on luck of timing. A single trial at this rate tells you very little about the true value.`});
+  else if(p>90) items.push({cls:'good', html:`At this rate, the outcome barely depends on timing luck anymore &mdash; the probability curve has flattened near 100%.`});
+  el('callouts').innerHTML = items.map(it=>`<div class="callout ${it.cls}">${it.html}</div>`).join('');
+}
+
+// ============ Mode B ============
+function runModeB(){
+  const hr = parseFloat(el('hr').value), width = parseFloat(el('width').value), fs = parseFloat(el('fsB').value);
+  el('hrVal').textContent=hr+' bpm'; el('widthVal').textContent=width+' ms'; el('fsBVal').textContent=fs+' Hz';
+
+  const trueBeats = beatTimesForHR(hr, DURATION_B);
+  const hi = heartbeatHighRes(trueBeats, width, DURATION_B, 1800);
+  const r = analyzeHeartbeat(hr, width, DURATION_B, fs, phaseB);
+
+  mainChart.data.datasets[0].data = hi.ts.map((t,i)=>({x:t,y:hi.ys[i]}));
+  mainChart.data.datasets[1].data = r.samples.ts.map((t,i)=>({x:t,y:r.samples.ys[i]}));
+  mainChart.data.datasets[2].data = r.trueBeats.map(t=>({x:t,y:1.05}));
+  mainChart.data.datasets[3].data = r.detected.map(t=>({x:t,y:0.95}));
+  mainChart.options.scales.x.min=0; mainChart.options.scales.x.max=DURATION_B;
+  mainChart.options.scales.y.min=-0.1; mainChart.options.scales.y.max=1.2;
+  mainChart.update();
+
+  el('mTrueHR').textContent=r.trueHR.toFixed(0);
+  el('mDetHR').textContent=isFinite(r.detectedHR) ? r.detectedHR.toFixed(0) : '—';
+  el('mTrueCount').textContent=r.trueCount;
+  el('mDetCount').textContent=r.detectedCount;
+  const p = probHeartbeat(hr,width,DURATION_B,fs,150);
+  el('mProbB').textContent=p.toFixed(0)+'%';
+
+  [el('mDetHRBox'),el('mDetCountBox'),el('mProbBBox')].forEach(b=>b.classList.remove('bad','good'));
+  const missed = r.trueCount - r.detectedCount;
+  if(!isFinite(r.errorBpm) || Math.abs(r.errorBpm)>5){ el('mDetHRBox').classList.add('bad'); el('mDetCountBox').classList.add('bad'); }
+  else { el('mDetHRBox').classList.add('good'); el('mDetCountBox').classList.add('good'); }
+  if(p<60) el('mProbBBox').classList.add('bad'); else if(p>90) el('mProbBBox').classList.add('good');
+
+  const fsPoints = [2,3,5,7,10,15,20,28,38,50,70,95,130,180,250,340,460];
+  const probData = fsPoints.map(f=>({x:f, y:probHeartbeat(hr,width,DURATION_B,f,60)}));
+  probChart.data.datasets[0].data = probData;
+  probChart.data.datasets[1].data = [{x:fs,y:0},{x:fs,y:100}];
+  probChart.options.scales.x.min=2; probChart.options.scales.x.max=500;
+  probChart.update();
+
+  const items=[];
+  if(missed>0) items.push({cls:'warn', html:`<b>${missed} of ${r.trueCount} beats missed</b> in this trial. Across many random trials at ${fs} Hz, only <b>${p.toFixed(0)}%</b> catch every single beat &mdash; the rest silently under-report heart rate.`});
+  else items.push({cls:'good', html:`All beats caught in this trial. Across many random trials at ${fs} Hz, <b>${p.toFixed(0)}%</b> catch every beat.`});
+  items.push({cls:'info', html:`This is a different failure mode than aliasing (see that tab): beats don't get misread as a different rhythm here &mdash; they simply disappear from the record.`});
+  el('callouts').innerHTML = items.map(it=>`<div class="callout ${it.cls}">${it.html}</div>`).join('');
+}
+
+// ============ Mode C ============
+function runModeC(){
+  const f0 = parseFloat(el('f0').value);
+  const fs = parseFloat(el('fsC').value);
+  el('f0Val').textContent = f0.toFixed(1)+' Hz';
+  el('fsCVal').textContent = fs.toFixed(1)+' Hz';
+
+  const hi = periodicHighRes(f0, 0.3, DURATION_C, 1600);
+  const {ts, ys} = periodicSamples(f0, 0.3, DURATION_C, fs, phaseC);
+
+  mainChart.data.datasets[0].data = hi.ts.map((t,i)=>({x:t,y:hi.ys[i]}));
+  mainChart.data.datasets[1].data = ts.map((t,i)=>({x:t,y:ys[i]}));
+  mainChart.data.datasets[2].data = [];
+  mainChart.data.datasets[3].data = [];
+  mainChart.options.scales.x.min=0; mainChart.options.scales.x.max=DURATION_C;
+  mainChart.options.scales.y.min=-1.5; mainChart.options.scales.y.max=1.5;
+  mainChart.update();
+
+  // the signal has a fundamental (f0) and a 2nd harmonic (2*f0); Nyquist applies to the highest component
+  const fHarm = 2*f0;
+  const nyquistFund = 2*f0;
+  const nyquist = 2*fHarm;
+  const aliased = fs < nyquistFund;          // fundamental itself is aliased
+  const harmAliased = !aliased && fs < nyquist; // fundamental resolved, 2nd harmonic aliased
+  const theoAlias = theoreticalAliasFreq(f0, fs);
+  const theoAliasHarm = theoreticalAliasFreq(fHarm, fs);
+  const measAlias = measuredFreqFromSamples(ts, ys);
+
+  el('cTrueFreq').textContent = f0.toFixed(1);
+  el('cNyquist').textContent = nyquist.toFixed(1);
+  el('cFs').textContent = fs.toFixed(1);
+  el('cAliasLbl').textContent = harmAliased ? '2nd harmonic appears at (Hz)' : 'Apparent frequency (Hz)';
+  el('cAliasFreq').textContent = aliased ? theoAlias.toFixed(2) : (harmAliased ? theoAliasHarm.toFixed(2) : '—');
+  el('cAliasBox').classList.toggle('bad', aliased || harmAliased);
+  el('cAliasBox').classList.toggle('good', !aliased && !harmAliased);
+  el('cBadge').textContent = aliased ? 'ALIASED — fundamental below Nyquist'
+    : harmAliased ? 'PARTLY ALIASED — 2nd harmonic below Nyquist'
+    : 'Above Nyquist — faithfully resolved';
+  el('cBadge').className = 'badge ' + (aliased || harmAliased ? 'bad' : 'good');
+
+  const items=[];
+  if(aliased){
+    items.push({cls:'warn', html:`Sampling at ${fs.toFixed(1)} Hz is below the ${nyquistFund.toFixed(1)} Hz needed for even the ${f0.toFixed(1)} Hz fundamental. Theory predicts the samples will look like a ${theoAlias.toFixed(2)} Hz oscillation${measAlias!==null ? ` — and measuring the reconstructed samples directly gives ${measAlias.toFixed(2)} Hz.` : ', though this window is too short to measure that low a frequency directly.'}`});
+    items.push({cls:'warn', html:`Notice this doesn't look broken. The reconstructed (navy) line is smooth and perfectly plausible &mdash; it's just confidently reporting the wrong frequency. That's what makes aliasing more dangerous than noise: noise looks messy, aliasing looks clean.`});
+  } else if(harmAliased){
+    items.push({cls:'warn', html:`Sampling at ${fs.toFixed(1)} Hz is fast enough for the ${f0.toFixed(1)} Hz fundamental (needs &gt; ${nyquistFund.toFixed(1)} Hz), so the main rhythm reads correctly. But this signal also has a 2nd harmonic at ${fHarm.toFixed(1)} Hz, which needs &gt; ${nyquist.toFixed(1)} Hz. That harmonic folds down to ${theoAliasHarm.toFixed(2)} Hz, so the waveform's shape is distorted even though its rate looks right.`});
+    items.push({cls:'info', html:`Nyquist applies to the highest frequency present in the signal, not just its main rhythm. Real movement signals have harmonics and sharp transients, which is one reason sampling rates are set well above twice the movement frequency.`});
+  } else {
+    items.push({cls:'good', html:`Sampling at ${fs.toFixed(1)} Hz is above the Nyquist rate of ${nyquist.toFixed(1)} Hz for the highest component (the ${fHarm.toFixed(1)} Hz 2nd harmonic) &mdash; the samples faithfully represent the true ${f0.toFixed(1)} Hz rhythm and its shape.`});
+  }
+  el('callouts').innerHTML = items.map(it=>`<div class="callout ${it.cls}">${it.html}</div>`).join('');
+}
+
+// ============ Mode switching ============
+function setMode(m){
+  mode = m;
+  el('modeBtnA').classList.toggle('active', m==='A');
+  el('modeBtnB').classList.toggle('active', m==='B');
+  el('modeBtnC').classList.toggle('active', m==='C');
+  el('controlsA').classList.toggle('hidden', m!=='A');
+  el('controlsB').classList.toggle('hidden', m!=='B');
+  el('controlsC').classList.toggle('hidden', m!=='C');
+  el('metricsA').classList.toggle('hidden', m!=='A');
+  el('metricsB').classList.toggle('hidden', m!=='B');
+  el('reliabilityBlock').classList.toggle('hidden', m==='C');
+  el('aliasBlock').classList.toggle('hidden', m!=='C');
+
+  mainChart.data.datasets[2].hidden = (m==='C');
+  mainChart.data.datasets[3].hidden = (m==='C');
+  mainChart.data.datasets[1].label = m==='C' ? 'reconstructed from samples (aliased view)' : 'reconstructed from samples';
+
+  el('chartTitle').textContent =
+    m==='A' ? 'True impact vs. what you’d actually measure' :
+    m==='B' ? 'True heartbeat train vs. what you’d actually detect' :
+    'True periodic rhythm vs. what your samples make it look like';
+
+  if(m==='A') runModeA(); else if(m==='B') runModeB(); else runModeC();
+}
+
+el('modeBtnA').addEventListener('click', ()=>setMode('A'));
+el('modeBtnB').addEventListener('click', ()=>setMode('B'));
+el('modeBtnC').addEventListener('click', ()=>setMode('C'));
+
+['riseMs','fsA'].forEach(id => el(id).addEventListener('input', runModeA));
+['hr','width','fsB'].forEach(id => el(id).addEventListener('input', runModeB));
+['f0','fsC'].forEach(id => el(id).addEventListener('input', runModeC));
+el('resampleA').addEventListener('click', ()=>{ phaseA=Math.random(); runModeA(); });
+el('resampleB').addEventListener('click', ()=>{ phaseB=Math.random(); runModeB(); });
+el('resampleC').addEventListener('click', ()=>{ phaseC=Math.random(); runModeC(); });
+
+setMode('A');
+</script>
+
+</body>
+</html>
