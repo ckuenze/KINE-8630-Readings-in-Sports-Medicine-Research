@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ultrasound Image Analysis Dashboard</title>
+<style>
+  :root{
+    --navy:#1E2761; --navy-soft:#273575; --ice:#CADCFC; --amber:#E8AA42; --slate:#44546A;
+    --bg:#FAFBFF; --white:#FFFFFF; --red:#C1443C; --red-bg:#FDEDEC; --green:#1C9C6E; --green-bg:#EAF8F2;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:Calibri,'Segoe UI',Helvetica,Arial,sans-serif; background:var(--bg); color:var(--navy); }
+  header{ background:var(--navy); color:var(--white); padding:20px 26px 18px; }
+  header h1{ font-family:Cambria,Georgia,'Times New Roman',serif; margin:0 0 4px; font-size:23px; }
+  header p{ margin:0; color:var(--ice); font-size:13.5px; max-width:900px; line-height:1.4; }
+  .toolbar-top{ display:flex; align-items:center; gap:12px; padding:14px 20px; background:var(--white); border-bottom:1px solid var(--ice); flex-wrap:wrap; }
+  .filebtn{ display:inline-block; padding:9px 16px; border-radius:7px; border:1px solid var(--navy);
+    background:var(--navy); color:#fff; font-weight:700; font-size:12.5px; cursor:pointer; }
+  .filebtn:hover{ background:var(--navy-soft); }
+  .unit-select{ padding:7px 10px; border:1px solid var(--ice); border-radius:6px; font-size:13px; }
+  .hint{ font-size:12px; color:#9aa4bd; }
+  #cardsWrap{ display:flex; flex-wrap:wrap; gap:16px; padding:18px 20px; }
+  .imgcard{ background:var(--white); border:1px solid var(--ice); border-radius:10px; padding:12px 14px 14px; width:480px; }
+  .imgcard-head{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .imgcard-head input[type=text]{ flex:1; font-weight:700; font-size:14px; border:1px solid transparent; border-radius:5px;
+    padding:4px 6px; color:var(--navy); background:transparent; }
+  .imgcard-head input[type=text]:hover, .imgcard-head input[type=text]:focus{ border-color:var(--ice); background:var(--bg); }
+  .removebtn{ border:none; background:none; color:var(--red); font-size:16px; cursor:pointer; font-weight:700; padding:2px 6px; }
+  .canvaswrap{ position:relative; width:100%; max-height:520px; background:#111; border-radius:6px; overflow:auto; }
+  canvas{ display:block; cursor:crosshair; }
+  .modebar{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .modebtn{ padding:6px 10px; border-radius:6px; border:1px solid var(--ice); background:var(--bg);
+    color:var(--navy); font-size:11.5px; font-weight:700; cursor:pointer; }
+  .modebtn.active{ background:var(--navy); color:#fff; border-color:var(--navy); }
+  .modebtn:hover:not(.active){ background:#E2E9FA; }
+  .caliblock{ margin-top:10px; padding:9px 10px; background:var(--bg); border:1px solid var(--ice); border-radius:7px; font-size:12px; }
+  .caliblock .row{ display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  .caliblock input[type=number]{ width:70px; padding:4px 6px; border:1px solid var(--ice); border-radius:5px; }
+  .smallbtn{ padding:5px 10px; border-radius:5px; border:1px solid var(--navy); background:var(--white);
+    color:var(--navy); font-size:11px; font-weight:700; cursor:pointer; }
+  .smallbtn:hover{ background:var(--navy); color:#fff; }
+  .status-ok{ color:var(--green); font-weight:700; }
+  .status-warn{ color:var(--red); font-weight:700; }
+  .modehint{ margin-top:8px; font-size:12px; color:var(--slate); min-height:16px; font-style:italic; }
+  .measlist{ margin-top:8px; font-size:12px; color:var(--slate); }
+  .measlist b{ color:var(--navy); }
+  .measrow{ display:flex; justify-content:space-between; padding:2px 0; }
+  .summary-card{ margin:0 20px 20px; background:var(--white); border:1px solid var(--ice); border-radius:10px; padding:16px 18px; }
+  .summary-card h2{ font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--amber); margin:0 0 12px; font-weight:700; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th{ text-align:left; color:var(--slate); font-size:11px; text-transform:uppercase; letter-spacing:0.3px; padding:6px 8px; border-bottom:2px solid var(--ice); }
+  td{ padding:8px; border-bottom:1px solid #EEF2FC; }
+  .foot{ padding:0 20px 20px; font-size:11px; color:#9aa4bd; max-width:1000px; }
+  .empty-msg{ padding:40px; text-align:center; color:#9aa4bd; font-size:14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ultrasound Image Analysis Dashboard</h1>
+  <p>Upload one or more images, calibrate each to real-world units, then measure distance, area, pennation angle, and echo intensity directly on the image. All images and their measurements are summarized in one table below.</p>
+</header>
+
+<div class="toolbar-top">
+  <label class="filebtn" for="fileInput">Add Image(s)</label>
+  <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
+  <span class="hint">PNG or JPG. Nothing you upload leaves your browser.</span>
+</div>
+
+<div id="cardsWrap"></div>
+<div class="empty-msg" id="emptyMsg">No images loaded yet. Click "Add Image(s)" to begin.</div>
+
+<div class="summary-card">
+  <h2>Summary Across All Images</h2>
+  <table>
+    <thead><tr>
+      <th>Image</th><th>Calibrated</th><th>Distance</th><th>Area</th><th>Pennation Angle</th><th>Echo Intensity</th>
+    </tr></thead>
+    <tbody id="summaryBody"></tbody>
+  </table>
+  <div style="margin-top:10px;"><button class="smallbtn" id="copyCsvBtn">Copy summary as CSV</button></div>
+</div>
+
+<div class="foot">Distance, area, and angle measurements depend entirely on accurate calibration and careful manual tracing; treat them as estimates, not clinical-grade measurements. Echo intensity is the mean grayscale value (0 to 255) of the original image pixels within the drawn rectangle or area shape (drawn lines and shapes are never included). Color pixels are converted with luminance weights (0.299R + 0.587G + 0.114B); for grayscale images this equals the pixel value, the same as ImageJ's mean gray value. No depth-attenuation correction is applied. Pennation angle is the acute angle between the fascicle line and the aponeurosis line you draw.</div>
+
+<script>
+const el = id => document.getElementById(id);
+let images = [];
+let imgCounter = 0;
+
+// ---------- geometry ----------
+function pixelDistance(p1, p2){ return Math.sqrt((p2.x-p1.x)**2 + (p2.y-p1.y)**2); }
+function polygonAreaPx(points){
+  let sum = 0; const n = points.length;
+  for(let i=0;i<n;i++){ const j=(i+1)%n; sum += points[i].x*points[j].y - points[j].x*points[i].y; }
+  return Math.abs(sum)/2;
+}
+function angleBetweenLines(line1, line2){
+  const v1 = {x:line1.p2.x-line1.p1.x, y:line1.p2.y-line1.p1.y};
+  const v2 = {x:line2.p2.x-line2.p1.x, y:line2.p2.y-line2.p1.y};
+  const dot = v1.x*v2.x + v1.y*v2.y;
+  const mag1 = Math.sqrt(v1.x**2+v1.y**2), mag2 = Math.sqrt(v2.x**2+v2.y**2);
+  let cosAngle = dot/(mag1*mag2);
+  cosAngle = Math.max(-1, Math.min(1, cosAngle));
+  return Math.acos(cosAngle) * (180/Math.PI);
+}
+function rgbToGray(r,g,b){ return 0.299*r + 0.587*g + 0.114*b; }
+
+function pxToReal(px, pxPerUnit){ return pxPerUnit ? px/pxPerUnit : null; }
+function pxAreaToReal(pxArea, pxPerUnit){ return pxPerUnit ? pxArea/(pxPerUnit*pxPerUnit) : null; }
+
+// ---------- image state ----------
+function newImageState(file, img){
+  imgCounter++;
+  return {
+    id: 'img'+imgCounter,
+    label: file.name.replace(/\.[^.]+$/,''),
+    img, canvas:null, ctx:null,
+    nativeWidth: img.naturalWidth, nativeHeight: img.naturalHeight,
+    calibration: { pxPerUnit:null, unit:'cm' },
+    mode: 'none',
+    pendingPoints: [],
+    angleStage: 0, angleLine1: null,
+    dragStart: null, dragCurrent: null,
+    twoPointStart: null, pendingCalibLine: null,
+    annotations: [], // {type, ...geometry, color}
+    areaShapes: [],
+    measurements: { distance:[], area:[], angle:[], echo:[] },
+    baseWidthPx: Math.min(img.naturalWidth, 460),
+    zoomPercent: 100,
+  };
+}
+
+function redraw(state){
+  const ctx = state.ctx;
+  ctx.clearRect(0,0,state.canvas.width,state.canvas.height);
+  ctx.drawImage(state.img, 0, 0, state.canvas.width, state.canvas.height);
+
+  state.annotations.forEach(a => drawAnnotation(ctx, a));
+
+  // in-progress previews
+  if((state.mode==='distance'||state.mode==='calibrate') && state.twoPointStart && state.dragCurrent){
+    const color = state.mode==='calibrate' ? '#E8AA42' : '#E8AA42';
+    drawAnnotation(ctx, {type:'line', p1:state.twoPointStart, p2:state.dragCurrent, color});
+  }
+  if((state.mode==='distance'||state.mode==='calibrate') && state.pendingPoints.length===1){
+    ctx.beginPath(); ctx.arc(state.pendingPoints[0].x, state.pendingPoints[0].y, 3, 0, 7);
+    ctx.fillStyle = '#E8AA42'; ctx.fill();
+  }
+  if(state.mode==='area' && state.pendingPoints.length>0){
+    ctx.strokeStyle = '#1E2761'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    state.pendingPoints.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+    ctx.stroke();
+    state.pendingPoints.forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,3,0,7); ctx.fillStyle='#1E2761'; ctx.fill(); });
+  }
+  if(state.mode==='angle'){
+    if(state.angleLine1){
+      drawAnnotation(ctx, {type:'line', p1:state.angleLine1.p1, p2:state.angleLine1.p2, color:'#C1443C'});
+    }
+    if(state.pendingPoints.length===1){
+      ctx.beginPath(); ctx.arc(state.pendingPoints[0].x, state.pendingPoints[0].y, 3, 0, 7);
+      ctx.fillStyle = state.angleStage===0 ? '#C1443C' : '#1C9C6E'; ctx.fill();
+    }
+  }
+  if(state.mode==='echo' && state.dragStart && state.dragCurrent){
+    const x = Math.min(state.dragStart.x, state.dragCurrent.x), y = Math.min(state.dragStart.y, state.dragCurrent.y);
+    const w = Math.abs(state.dragCurrent.x-state.dragStart.x), h = Math.abs(state.dragCurrent.y-state.dragStart.y);
+    ctx.strokeStyle = '#2F7FD6'; ctx.lineWidth = 2; ctx.strokeRect(x,y,w,h);
+  }
+}
+
+function toAcute(angle){ return angle > 90 ? 180 - angle : angle; }
+function pointInPolygon(pt, poly){
+  let inside = false;
+  for(let i=0, j=poly.length-1; i<poly.length; j=i++){
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    const intersect = ((yi>pt.y) !== (yj>pt.y)) && (pt.x < (xj-xi)*(pt.y-yi)/(yj-yi)+xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+function echoFromPolygon(state, points){
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  points.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); });
+  minX=Math.max(0,Math.floor(minX)); minY=Math.max(0,Math.floor(minY));
+  maxX=Math.min(state.canvas.width,Math.ceil(maxX)); maxY=Math.min(state.canvas.height,Math.ceil(maxY));
+  const w = maxX-minX, h = maxY-minY;
+  if(w<=0||h<=0) return null;
+  // read from the image-only canvas so drawn annotations never enter the measurement
+  const imgData = state.baseCtx.getImageData(minX,minY,w,h).data;
+  let sum=0, count=0;
+  for(let yy=0; yy<h; yy++){
+    for(let xx=0; xx<w; xx++){
+      if(pointInPolygon({x:minX+xx, y:minY+yy}, points)){
+        const idx = (yy*w+xx)*4;
+        sum += rgbToGray(imgData[idx], imgData[idx+1], imgData[idx+2]);
+        count++;
+      }
+    }
+  }
+  return count ? sum/count : null;
+}
+
+function drawAnnotation(ctx, a){
+  if(a.type==='line'){
+    ctx.strokeStyle = a.color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(a.p1.x,a.p1.y); ctx.lineTo(a.p2.x,a.p2.y); ctx.stroke();
+    ctx.fillStyle = a.color;
+    [a.p1,a.p2].forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,3,0,7); ctx.fill(); });
+  } else if(a.type==='polygon'){
+    ctx.strokeStyle = a.color; ctx.fillStyle = a.color.replace(')', ',0.18)').replace('rgb','rgba');
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    a.points.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if(a.type==='rect'){
+    ctx.strokeStyle = a.color; ctx.lineWidth = 2;
+    ctx.strokeRect(a.x, a.y, a.w, a.h);
+  } else if(a.type==='anglepair'){
+    drawAnnotation(ctx, {type:'line', p1:a.line1.p1, p2:a.line1.p2, color:'#C1443C'});
+    drawAnnotation(ctx, {type:'line', p1:a.line2.p1, p2:a.line2.p2, color:'#1C9C6E'});
+  }
+}
+
+function getCanvasCoords(evt, canvas){
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+  return { x: (evt.clientX-rect.left)*scaleX, y: (evt.clientY-rect.top)*scaleY };
+}
+
+function setMode(state, mode){
+  if(state.mode==='calibrate' && mode!=='calibrate' && state.pendingCalibLine){
+    state.annotations = state.annotations.filter(a=>a.tag!=='calib-pending');
+    state.pendingCalibLine = null;
+  }
+  state.mode = mode;
+  state.pendingPoints = [];
+  state.angleStage = 0; state.angleLine1 = null;
+  state.dragStart = null; state.dragCurrent = null;
+  state.twoPointStart = null;
+  updateCardUI(state);
+  redraw(state);
+}
+
+function fmtNum(v, d){ return (v===null||v===undefined||!isFinite(v)) ? '—' : v.toFixed(d); }
+function meanOf(arr){ return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null; }
+
+function finalizeCalibrationLine(state, p1, p2){
+  const pxDist = pixelDistance(p1, p2);
+  state.annotations = state.annotations.filter(a=>a.tag!=='calib-pending');
+  state.annotations.push({type:'line', p1, p2, color:'#E8AA42', tag:'calib-pending'});
+  state.pendingCalibLine = { p1, p2, pxDist };
+  updateCardUI(state);
+}
+function finalizeDistanceLine(state, p1, p2){
+  const pxDist = pixelDistance(p1, p2);
+  const realDist = pxToReal(pxDist, state.calibration.pxPerUnit);
+  const annot = {type:'line', p1, p2, color:'#E8AA42'};
+  state.annotations.push(annot);
+  pushMeasurement(state, 'distance', realDist!==null ? realDist : pxDist, annot);
+  updateCardUI(state);
+  updateSummary();
+}
+
+function handleCanvasClick(state, evt){
+  const pt = getCanvasCoords(evt, state.canvas);
+  if(state.mode==='angle'){
+    state.pendingPoints.push(pt);
+    if(state.pendingPoints.length===2){
+      const line = {p1:state.pendingPoints[0], p2:state.pendingPoints[1]};
+      state.pendingPoints = [];
+      if(state.angleStage===0){
+        state.angleLine1 = line; // fascicle line
+        state.angleStage = 1;
+      } else {
+        // second line is the aponeurosis the fascicle inserts into; pennation angle is the
+        // acute angle between the two lines (no assumption that the aponeurosis is horizontal)
+        const angle = toAcute(angleBetweenLines(state.angleLine1, line));
+        const annot = {type:'anglepair', line1:state.angleLine1, line2:line};
+        state.annotations.push(annot);
+        pushMeasurement(state, 'angle', angle, annot);
+        state.angleLine1 = null; state.angleStage = 0;
+        updateSummary();
+      }
+    }
+    updateCardUI(state);
+  } else if(state.mode==='area'){
+    state.pendingPoints.push(pt);
+    updateCardUI(state);
+  }
+  redraw(state);
+}
+
+function handleCanvasMouseDown(state, evt){
+  const pt = getCanvasCoords(evt, state.canvas);
+  if(state.mode==='echo'){
+    state.dragStart = pt; state.dragCurrent = pt;
+  } else if(state.mode==='calibrate' || state.mode==='distance'){
+    state.twoPointStart = pt; state.dragCurrent = pt;
+  }
+}
+function handleCanvasMouseMove(state, evt){
+  if(state.mode==='echo' && state.dragStart){
+    state.dragCurrent = getCanvasCoords(evt, state.canvas);
+    redraw(state);
+  } else if((state.mode==='calibrate'||state.mode==='distance') && state.twoPointStart){
+    state.dragCurrent = getCanvasCoords(evt, state.canvas);
+    redraw(state);
+  }
+}
+function handleCanvasMouseUp(state, evt){
+  if(state.mode==='echo'){
+    if(!state.dragStart) return;
+    const end = getCanvasCoords(evt, state.canvas);
+    const x = Math.min(state.dragStart.x, end.x), y = Math.min(state.dragStart.y, end.y);
+    const w = Math.abs(end.x-state.dragStart.x), h = Math.abs(end.y-state.dragStart.y);
+    if(w>=2 && h>=2){
+      // read from the image-only canvas so drawn annotations never enter the measurement
+      const ix = Math.max(0, Math.round(x)), iy = Math.max(0, Math.round(y));
+      const iw = Math.min(state.baseCanvas.width - ix, Math.round(w)), ih = Math.min(state.baseCanvas.height - iy, Math.round(h));
+      const imgData = state.baseCtx.getImageData(ix, iy, iw, ih).data;
+      let sum=0, count=0;
+      for(let i=0;i<imgData.length;i+=4){ sum += rgbToGray(imgData[i],imgData[i+1],imgData[i+2]); count++; }
+      const mean = count ? sum/count : null;
+      const annot = {type:'rect', x, y, w, h, color:'#2F7FD6'};
+      state.annotations.push(annot);
+      pushMeasurement(state, 'echo', mean, annot);
+      updateCardUI(state); updateSummary();
+    }
+    state.dragStart = null; state.dragCurrent = null;
+    redraw(state);
+  } else if(state.mode==='calibrate' || state.mode==='distance'){
+    if(!state.twoPointStart) return;
+    const end = getCanvasCoords(evt, state.canvas);
+    const dragDist = pixelDistance(state.twoPointStart, end);
+    const DRAG_THRESHOLD = 4; // native px; below this, treat as a click rather than a drag
+    if(dragDist > DRAG_THRESHOLD){
+      // drag: the two points are start and end of this single gesture
+      if(state.mode==='calibrate') finalizeCalibrationLine(state, state.twoPointStart, end);
+      else finalizeDistanceLine(state, state.twoPointStart, end);
+      state.twoPointStart = null; state.dragCurrent = null;
+    } else {
+      // click: accumulate into pendingPoints, wait for a second click
+      state.pendingPoints.push(state.twoPointStart);
+      state.twoPointStart = null; state.dragCurrent = null;
+      if(state.pendingPoints.length===2){
+        const p1 = state.pendingPoints[0], p2 = state.pendingPoints[1];
+        state.pendingPoints = [];
+        if(state.mode==='calibrate') finalizeCalibrationLine(state, p1, p2);
+        else finalizeDistanceLine(state, p1, p2);
+      }
+    }
+    updateCardUI(state);
+    redraw(state);
+  }
+}
+
+function finishAreaShape(state){
+  if(state.pendingPoints.length<3){ alert('Click at least 3 points before finishing a shape.'); return; }
+  const pxArea = polygonAreaPx(state.pendingPoints);
+  const realArea = pxAreaToReal(pxArea, state.calibration.pxPerUnit);
+  const shapePoints = state.pendingPoints.slice();
+  const annot = {type:'polygon', points:shapePoints, color:'rgb(30,39,97)'};
+  state.annotations.push(annot);
+  state.areaShapes = state.areaShapes || [];
+  state.areaShapes.push(shapePoints);
+  pushMeasurement(state, 'area', realArea!==null ? realArea : pxArea, annot, shapePoints);
+  state.pendingPoints = [];
+  updateCardUI(state); updateSummary();
+  redraw(state);
+}
+
+// Undo removes the most recent measurement together with the annotation drawn for it
+// (calibration lines are not measurements and are left in place).
+function undoLast(state){
+  const entry = state.history && state.history.pop();
+  if(!entry) return;
+  if(state.measurements[entry.type].length) state.measurements[entry.type].pop();
+  if(entry.annot) state.annotations = state.annotations.filter(a => a !== entry.annot);
+  if(entry.shape) state.areaShapes = (state.areaShapes || []).filter(s => s !== entry.shape);
+  updateCardUI(state); updateSummary(); redraw(state);
+}
+
+// record each measurement with the annotation (and area shape) it belongs to, for undo
+function pushMeasurement(state, type, value, annot, shape){
+  state.measurements[type].push(value);
+  state.history = state.history || [];
+  state.history.push({ type, annot: annot || null, shape: shape || null });
+}
+
+function updateCardUI(state){
+  const card = el('card_'+state.id);
+  if(!card) return;
+  card.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('active', b.dataset.mode===state.mode));
+
+  const calibStatus = card.querySelector('.calib-status');
+  if(state.calibration.pxPerUnit){
+    calibStatus.innerHTML = '<span class="status-ok">Calibrated: ' + state.calibration.pxPerUnit.toFixed(2) + ' px per ' + state.calibration.unit + '</span>';
+  } else {
+    calibStatus.innerHTML = '<span class="status-warn">Not calibrated (measurements in pixels)</span>';
+  }
+
+  const pendingBlock = card.querySelector('.calib-pending-block');
+  if(state.mode==='calibrate' && state.pendingCalibLine){
+    pendingBlock.style.display = 'block';
+    pendingBlock.querySelector('.calib-px-readout').textContent = state.pendingCalibLine.pxDist.toFixed(1) + ' px';
+  } else {
+    pendingBlock.style.display = 'none';
+  }
+
+  const hint = card.querySelector('.modehint');
+  const hints = {
+    none: '',
+    calibrate: state.pendingCalibLine ? 'Enter the real-world distance below to set calibration.'
+      : (state.pendingPoints.length===0 ? 'Click 2 points a known distance apart, or click-drag a line.' : 'Click the second point.'),
+    distance: state.pendingPoints.length===0 ? 'Click 2 points to measure, or click-drag a line.' : 'Click the second point.',
+    area: 'Click to add points around the region. Use "Finish Shape" below when done (at least 3 points).',
+    angle: state.angleStage===0
+      ? (state.pendingPoints.length===0 ? 'Click 2 points along the fascicle.' : 'Click the second point of the fascicle line.')
+      : (state.pendingPoints.length===0 ? 'Now click 2 points along the aponeurosis the fascicle inserts into.' : 'Click the second point of the aponeurosis line.'),
+    echo: 'Click and drag a rectangle, or use an existing area shape below.',
+  };
+  hint.textContent = hints[state.mode] || '';
+
+  const finishBtn = card.querySelector('.finish-area-btn');
+  finishBtn.style.display = state.mode==='area' ? 'inline-block' : 'none';
+
+  const echoShapeBlock = card.querySelector('.echo-shape-block');
+  if(state.mode==='echo'){
+    echoShapeBlock.style.display = 'block';
+    const select = echoShapeBlock.querySelector('.echo-shape-select');
+    const shapes = state.areaShapes || [];
+    select.innerHTML = shapes.length
+      ? shapes.map((s,i)=>'<option value="'+i+'">Shape '+(i+1)+'</option>').join('')
+      : '<option value="">No area shapes drawn yet</option>';
+    echoShapeBlock.querySelector('.echo-shape-btn').disabled = shapes.length===0;
+  } else {
+    echoShapeBlock.style.display = 'none';
+  }
+
+  const list = card.querySelector('.measlist');
+  const rows = [];
+  if(state.measurements.distance.length) rows.push('<div class="measrow"><span>Distance</span><b>' + state.measurements.distance.map(v=>fmtNum(v,2)).join(', ') + (state.calibration.pxPerUnit? ' '+state.calibration.unit : ' px') + '</b></div>');
+  if(state.measurements.area.length) rows.push('<div class="measrow"><span>Area</span><b>' + state.measurements.area.map(v=>fmtNum(v,2)).join(', ') + (state.calibration.pxPerUnit? ' '+state.calibration.unit+'²' : ' px²') + '</b></div>');
+  if(state.measurements.angle.length) rows.push('<div class="measrow"><span>Angle</span><b>' + state.measurements.angle.map(v=>fmtNum(v,1)).join(', ') + '°</b></div>');
+  if(state.measurements.echo.length) rows.push('<div class="measrow"><span>Echo intensity</span><b>' + state.measurements.echo.map(v=>fmtNum(v,1)).join(', ') + '</b></div>');
+  list.innerHTML = rows.length ? rows.join('') : '<span style="color:#9aa4bd;">No measurements yet.</span>';
+}
+
+function createCard(state){
+  el('emptyMsg').style.display = 'none';
+  const card = document.createElement('div');
+  card.className = 'imgcard';
+  card.id = 'card_'+state.id;
+  card.innerHTML = `
+    <div class="imgcard-head">
+      <input type="text" value="${state.label}" />
+      <button class="removebtn" title="Remove image">✕</button>
+    </div>
+    <div class="canvaswrap"><canvas></canvas></div>
+    <div class="modebar">
+      <span class="hint">Zoom</span>
+      <input type="range" class="zoom-slider" min="50" max="300" step="10" value="100" style="width:90px;">
+      <span class="zoom-readout hint">100%</span>
+    </div>
+    <div class="modebar">
+      <button class="modebtn" data-mode="calibrate">Calibrate</button>
+      <button class="modebtn" data-mode="distance">Distance</button>
+      <button class="modebtn" data-mode="area">Area</button>
+      <button class="modebtn" data-mode="angle">Angle</button>
+      <button class="modebtn" data-mode="echo">Echo Intensity</button>
+      <button class="smallbtn finish-area-btn" style="display:none;">Finish Shape</button>
+      <button class="smallbtn undo-btn">Undo Last</button>
+    </div>
+    <div class="caliblock">
+      <div class="calib-status"></div>
+      <div class="calib-pending-block" style="display:none; margin-top:6px;">
+        <span>Line drawn: <b class="calib-px-readout"></b></span>
+        <div class="row">
+          <span>Real-world distance:</span>
+          <input type="number" class="calib-real-input" placeholder="e.g. 2" step="0.01">
+          <span class="calib-unit-echo"></span>
+          <button class="smallbtn set-calib-btn">Set Calibration</button>
+        </div>
+      </div>
+      <div class="row">
+        <span>Unit:</span>
+        <select class="unit-select-inline">
+          <option value="cm">cm</option>
+          <option value="mm">mm</option>
+        </select>
+        <span>or enter known scale:</span>
+        <input type="number" class="manual-scale" placeholder="px/unit" step="0.01">
+        <button class="smallbtn set-manual-btn">Set</button>
+      </div>
+    </div>
+    <div class="echo-shape-block" style="display:none; margin-top:8px; font-size:12px;">
+      <span>Or use an existing area shape:</span>
+      <div class="row">
+        <select class="echo-shape-select"></select>
+        <button class="smallbtn echo-shape-btn">Use Selected Shape</button>
+      </div>
+    </div>
+    <div class="modehint"></div>
+    <div class="measlist"></div>
+  `;
+  el('cardsWrap').appendChild(card);
+
+  const canvas = card.querySelector('canvas');
+  canvas.width = state.nativeWidth; canvas.height = state.nativeHeight;
+  canvas.style.width = state.baseWidthPx + 'px';
+  state.canvas = canvas; state.ctx = canvas.getContext('2d');
+  // off-screen copy of the image alone, used for echo intensity so drawn annotations are never measured
+  state.baseCanvas = document.createElement('canvas');
+  state.baseCanvas.width = state.nativeWidth; state.baseCanvas.height = state.nativeHeight;
+  state.baseCtx = state.baseCanvas.getContext('2d', { willReadFrequently: true });
+  state.baseCtx.drawImage(state.img, 0, 0, state.nativeWidth, state.nativeHeight);
+  redraw(state);
+
+  canvas.addEventListener('click', e => handleCanvasClick(state, e));
+  canvas.addEventListener('mousedown', e => handleCanvasMouseDown(state, e));
+  canvas.addEventListener('mousemove', e => handleCanvasMouseMove(state, e));
+  canvas.addEventListener('mouseup', e => handleCanvasMouseUp(state, e));
+
+  card.querySelector('.zoom-slider').addEventListener('input', e=>{
+    state.zoomPercent = parseInt(e.target.value, 10);
+    canvas.style.width = (state.baseWidthPx * state.zoomPercent/100) + 'px';
+    card.querySelector('.zoom-readout').textContent = state.zoomPercent + '%';
+  });
+
+  card.querySelectorAll('.modebtn').forEach(btn=>{
+    btn.addEventListener('click', ()=> setMode(state, btn.dataset.mode===state.mode ? 'none' : btn.dataset.mode));
+  });
+  card.querySelector('.finish-area-btn').addEventListener('click', ()=> finishAreaShape(state));
+  card.querySelector('.undo-btn').addEventListener('click', ()=> undoLast(state));
+  card.querySelector('.set-calib-btn').addEventListener('click', ()=>{
+    if(!state.pendingCalibLine) return;
+    const realNum = parseFloat(card.querySelector('.calib-real-input').value);
+    if(realNum && realNum>0){
+      state.calibration.pxPerUnit = state.pendingCalibLine.pxDist / realNum;
+      state.annotations = state.annotations.filter(a=>a.tag!=='calib-pending');
+      state.annotations.push({type:'line', p1:state.pendingCalibLine.p1, p2:state.pendingCalibLine.p2, color:'#E8AA42'});
+      state.pendingCalibLine = null;
+      card.querySelector('.calib-real-input').value = '';
+      updateCardUI(state); updateSummary(); redraw(state);
+    } else {
+      alert('Enter a positive real-world distance first.');
+    }
+  });
+  card.querySelector('.echo-shape-btn').addEventListener('click', ()=>{
+    const idx = parseInt(card.querySelector('.echo-shape-select').value, 10);
+    const shapes = state.areaShapes || [];
+    if(isNaN(idx) || !shapes[idx]) return;
+    const mean = echoFromPolygon(state, shapes[idx]);
+    if(mean!==null){
+      pushMeasurement(state, 'echo', mean);
+      updateCardUI(state); updateSummary();
+    }
+  });
+  card.querySelector('.removebtn').addEventListener('click', ()=>{
+    images = images.filter(s=>s.id!==state.id);
+    card.remove();
+    if(images.length===0) el('emptyMsg').style.display = 'block';
+    updateSummary();
+  });
+  card.querySelector('input[type=text]').addEventListener('input', e=>{
+    state.label = e.target.value; updateSummary();
+  });
+  card.querySelector('.unit-select-inline').addEventListener('change', e=>{
+    state.calibration.unit = e.target.value; updateCardUI(state); updateSummary();
+  });
+  card.querySelector('.set-manual-btn').addEventListener('click', ()=>{
+    const val = parseFloat(card.querySelector('.manual-scale').value);
+    if(val && val>0){ state.calibration.pxPerUnit = val; updateCardUI(state); updateSummary(); }
+  });
+
+  updateCardUI(state);
+}
+
+function updateSummary(){
+  const rows = images.map(state => {
+    const calibText = state.calibration.pxPerUnit ? state.calibration.pxPerUnit.toFixed(1)+' px/'+state.calibration.unit : 'No';
+    const distUnit = state.calibration.pxPerUnit ? ' '+state.calibration.unit : ' px';
+    const areaUnit = state.calibration.pxPerUnit ? ' '+state.calibration.unit+'²' : ' px²';
+    const distText = state.measurements.distance.length ? fmtNum(meanOf(state.measurements.distance),2) + distUnit + (state.measurements.distance.length>1?' (n='+state.measurements.distance.length+')':'') : '—';
+    const areaText = state.measurements.area.length ? fmtNum(meanOf(state.measurements.area),2) + areaUnit + (state.measurements.area.length>1?' (n='+state.measurements.area.length+')':'') : '—';
+    const angleText = state.measurements.angle.length ? fmtNum(meanOf(state.measurements.angle),1)+'°' + (state.measurements.angle.length>1?' (n='+state.measurements.angle.length+')':'') : '—';
+    const echoText = state.measurements.echo.length ? fmtNum(meanOf(state.measurements.echo),1) + (state.measurements.echo.length>1?' (n='+state.measurements.echo.length+')':'') : '—';
+    return `<tr><td>${state.label}</td><td>${calibText}</td><td>${distText}</td><td>${areaText}</td><td>${angleText}</td><td>${echoText}</td></tr>`;
+  });
+  el('summaryBody').innerHTML = rows.join('');
+}
+
+el('fileInput').addEventListener('change', e=>{
+  Array.from(e.target.files).forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const state = newImageState(file, img);
+        images.push(state);
+        createCard(state);
+        updateSummary();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = '';
+});
+
+el('copyCsvBtn').addEventListener('click', ()=>{
+  const header = ['Image','Calibration','Distance','Area','Angle','EchoIntensity'];
+  const lines = [header.join(',')];
+  images.forEach(state=>{
+    const calibText = state.calibration.pxPerUnit ? state.calibration.pxPerUnit.toFixed(2)+' px/'+state.calibration.unit : '';
+    const d = meanOf(state.measurements.distance), a = meanOf(state.measurements.area), ang = meanOf(state.measurements.angle), e = meanOf(state.measurements.echo);
+    lines.push([state.label, calibText, d!==null?d.toFixed(2):'', a!==null?a.toFixed(2):'', ang!==null?ang.toFixed(1):'', e!==null?e.toFixed(1):''].join(','));
+  });
+  const text = lines.join('\n');
+  if(navigator.clipboard) navigator.clipboard.writeText(text).then(()=>alert('Summary copied to clipboard.'));
+});
+</script>
+
+</body>
+</html>
