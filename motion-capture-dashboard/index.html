@@ -1,0 +1,1245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Motion lab: markers, gaps, and data quality</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #E6ECF3; --panel: #F7F9FC; --panel-2: #EDF1F6; --ink: #0F1B2D; --muted: #566379; --line: #C9D3E0;
+  --accent: #D92B58; --accent-ink: #FFFFFF; --focus: #1B6FE8;
+  --vp: #0C1626; --vp-line: #1E2F47; --vp-ink: #8CA0BB;
+  --ok: #1E8F5A; --warn: #B7791F; --fail: #C73A3A;
+  --thigh: #E8742B; --shank: #138A99; --knee: #D92B58;
+  --display: 'Familjen Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --body: 'Public Sans', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A121E; --panel: #111C2C; --panel-2: #16243A; --ink: #E8EEF7; --muted: #9AAAC0; --line: #27384F;
+    --accent: #FF5C85; --accent-ink: #1A0A10; --focus: #6FA8FF; --vp: #070D17; --vp-line: #182740; --vp-ink: #8CA0BB;
+    --ok: #4FD08C; --warn: #F2B84B; --fail: #FF7676; --thigh: #FF9A57; --shank: #3CCBDB; --knee: #FF5C85;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A121E; --panel: #111C2C; --panel-2: #16243A; --ink: #E8EEF7; --muted: #9AAAC0; --line: #27384F;
+  --accent: #FF5C85; --accent-ink: #1A0A10; --focus: #6FA8FF; --vp: #070D17; --vp-line: #182740; --vp-ink: #8CA0BB;
+  --ok: #4FD08C; --warn: #F2B84B; --fail: #FF7676; --thigh: #FF9A57; --shank: #3CCBDB; --knee: #FF5C85;
+  color-scheme: dark;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.5 var(--body); -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.15; letter-spacing: -0.01em; }
+p { margin: 0; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 20px 20px 48px; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; padding-bottom: 14px; }
+.top h1 { font-size: 34px; font-weight: 700; }
+.top p { color: var(--muted); max-width: 52ch; margin-top: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; padding: 8px 14px; border-radius: 8px; font-weight: 500; color: var(--muted); }
+.seg button[aria-checked="true"] { background: var(--ink); color: var(--bg); }
+
+/* tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; overflow-x: auto; }
+.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px 9px; font: 600 16px var(--display); color: var(--muted); white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs .n { color: var(--accent); margin-right: 6px; font-variant-numeric: tabular-nums; }
+
+/* layouts */
+.grid-markers { display: grid; grid-template-columns: 290px 330px minmax(0, 1fr); gap: 18px; align-items: start; }
+.grid-main { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 1080px) { .grid-markers { grid-template-columns: 290px minmax(0, 1fr); } .grid-markers .results { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .grid-markers, .grid-main { grid-template-columns: minmax(0, 1fr); } .top h1 { font-size: 28px; } }
+.rail { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.rail h2 { font-size: 20px; }
+.rail .lead { color: var(--muted); font-size: 14px; }
+.group { display: flex; flex-direction: column; gap: 8px; }
+.group > h3 { font-size: 14px; font-weight: 600; color: var(--muted); }
+.row { display: flex; align-items: center; gap: 10px; }
+.row.sp { justify-content: space-between; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 7px 11px; font-weight: 500; font-size: 14px; }
+.btn:hover { border-color: var(--muted); }
+.btn.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+label.sl { display: flex; flex-direction: column; gap: 3px; font-size: 14px; }
+label.sl .h { display: flex; justify-content: space-between; gap: 8px; }
+label.sl output { font-variant-numeric: tabular-nums; color: var(--muted); }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+input[type="checkbox"] { accent-color: var(--accent); width: 17px; height: 17px; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.chk.top, #gp-methods .chk { align-items: flex-start; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: none; }
+.prob { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.prob:first-of-type { border-top: 0; }
+.prob input[type="range"] { grid-column: 1 / -1; }
+.prob .v { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* viewports */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.panel h3 { font-size: 17px; }
+.panel .cap { color: var(--muted); font-size: 13.5px; }
+.vp { position: relative; background: var(--vp); border-radius: 10px; border: 1px solid var(--vp-line); overflow: hidden; }
+.vp canvas { display: block; width: 100%; touch-action: none; }
+.tip { position: absolute; pointer-events: none; background: rgba(8, 14, 24, .92); color: #E8EEF7; border: 1px solid #2B3F5C; border-radius: 8px; padding: 6px 9px; font-size: 12.5px; line-height: 1.45; display: none; white-space: nowrap; font-variant-numeric: tabular-nums; z-index: 3; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 16px; height: 3px; border-radius: 2px; }
+.legend i.dot { width: 7px; height: 7px; border-radius: 50%; }
+.legend i.dash { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px); height: 2px; }
+
+/* limb */
+.limbbox { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
+.limbbox svg { display: block; width: 100%; height: auto; max-height: 86vh; }
+.limbbox .seg-fill { fill: var(--panel-2); stroke: var(--line); stroke-width: 2; }
+.limbbox text { font: 600 13px var(--body); fill: var(--muted); }
+.limbbox .mk { cursor: grab; }
+.limbbox .mk:active { cursor: grabbing; }
+.limbbox .mk:focus-visible circle.face { stroke: var(--focus); stroke-width: 4; }
+.limbbox .mk text { fill: #fff; font-size: 12px; pointer-events: none; }
+
+/* readouts */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.card h3 { font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.card .big { font: 700 26px var(--display); font-variant-numeric: tabular-nums; }
+.card .sub { color: var(--muted); font-size: 13.5px; }
+.badge { font: 600 12px var(--body); padding: 2px 8px; border-radius: 99px; border: 1px solid currentColor; }
+.badge.ok { color: var(--ok); } .badge.warn { color: var(--warn); } .badge.fail { color: var(--fail); }
+.note { background: var(--panel-2); border-left: 4px solid var(--accent); border-radius: 6px; padding: 10px 12px; font-size: 14px; }
+.stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* table */
+table.m { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+table.m th, table.m td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.m th { font-weight: 600; color: var(--muted); font-size: 13px; }
+table.m td.num, table.m th.num { text-align: right; }
+.bar { height: 8px; border-radius: 4px; background: var(--line); min-width: 80px; }
+.bar > i { display: block; height: 100%; border-radius: 4px; }
+.scroll { overflow-x: auto; }
+
+/* checks */
+.verdict { border-radius: 12px; padding: 12px 14px; border: 1px solid currentColor; display: flex; flex-direction: column; gap: 2px; }
+.verdict.ok { color: var(--ok); } .verdict.warn { color: var(--warn); } .verdict.fail { color: var(--fail); }
+.verdict strong { font: 700 20px var(--display); }
+.verdict span { color: var(--ink); font-size: 14px; }
+.checks { display: flex; flex-direction: column; }
+.chk-row { display: grid; grid-template-columns: 14px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 4px 12px; padding: 9px 0; border-top: 1px solid var(--line); align-items: baseline; font-size: 14px; }
+.chk-row .dotc { width: 11px; height: 11px; border-radius: 50%; margin-top: 3px; align-self: start; }
+.chk-row .dotc.ok { background: var(--ok); } .chk-row .dotc.warn { background: var(--warn); } .chk-row .dotc.fail { background: var(--fail); }
+.chk-row .val { font-weight: 600; font-variant-numeric: tabular-nums; }
+.chk-row .ref { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chk-row .tp { grid-column: 2 / -1; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) { .chk-row { grid-template-columns: 14px 1fr; } .chk-row .val, .chk-row .ref, .chk-row .tp { grid-column: 2; } }
+details { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+details summary { cursor: pointer; font-weight: 600; }
+details p { margin-top: 6px; color: var(--muted); }
+.foot { color: var(--muted); font-size: 13px; margin-top: 22px; max-width: 80ch; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 640px) { .two { grid-template-columns: 1fr; } }
+#gp-how { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px 22px; }
+.how h4 { font: 600 15px var(--display); display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.how p { color: var(--muted); font-size: 14px; }
+.limbbox .mk[style*="display: none"] { pointer-events: none; }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Motion lab</h1>
+      <p>Practice the three judgment calls behind clean kinematic and kinetic data: where to put markers, how to fill gaps, and when to distrust a trial.</p>
+    </div>
+    <div class="seg" role="radiogroup" aria-label="Movement">
+      <button role="radio" aria-checked="true" data-k="walk">Walking</button>
+      <button role="radio" aria-checked="false" data-k="cmj">Countermovement jump</button>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist" aria-label="Modules">
+    <button role="tab" aria-selected="true" data-t="markers"><span class="n">1</span>Marker clusters</button>
+    <button role="tab" aria-selected="false" data-t="gaps"><span class="n">2</span>Gaps and splines</button>
+    <button role="tab" aria-selected="false" data-t="quality"><span class="n">3</span>Data quality</button>
+  </nav>
+  <main>
+    <section class="tabpanel" id="tab-markers" role="tabpanel"></section>
+    <section class="tabpanel" id="tab-gaps" role="tabpanel" hidden></section>
+    <section class="tabpanel" id="tab-quality" role="tabpanel" hidden></section>
+  </main>
+  <p class="foot">All curves are simulated, schematic data for teaching. They are shaped like typical walking and countermovement jump trials for a 75 kg adult, not measurements from a person. Thresholds in the quality checks are teaching guides; use your lab’s own criteria.</p>
+</div>
+<script>
+'use strict';
+/* ======================================================================
+   Motion lab core: pure functions, no DOM. Tested in node, inlined in the page.
+   ====================================================================== */
+const G = 9.81, MASS = 75, BWN = MASS * G;
+
+/* ---------- random ---------- */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function gauss(rng) {
+  let u = 0; while (u === 0) u = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng());
+}
+
+/* ---------- cubic Hermite family ---------- */
+function endSlope(h0, h1, d0, d1) {
+  let s = ((2 * h0 + h1) * d0 - h0 * d1) / (h0 + h1);
+  if (Math.sign(s) !== Math.sign(d0)) s = 0;
+  else if (Math.sign(d0) !== Math.sign(d1) && Math.abs(s) > 3 * Math.abs(d0)) s = 3 * d0;
+  return s;
+}
+function pchipSlopes(x, y) {
+  const n = x.length, h = [], d = [];
+  for (let i = 0; i < n - 1; i++) { h.push(x[i + 1] - x[i]); d.push((y[i + 1] - y[i]) / h[i]); }
+  const m = new Array(n).fill(0);
+  if (n === 1) return m;
+  if (n === 2) { m[0] = m[1] = d[0]; return m; }
+  for (let i = 1; i < n - 1; i++) {
+    if (d[i - 1] * d[i] > 0) {
+      const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1];
+      m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+    }
+  }
+  m[0] = endSlope(h[0], h[1], d[0], d[1]);
+  m[n - 1] = endSlope(h[n - 2], h[n - 3], d[n - 2], d[n - 3]);
+  return m;
+}
+function akimaSlopes(x, y) {
+  const n = x.length;
+  if (n < 5) return pchipSlopes(x, y);
+  const m = new Array(n + 3);
+  for (let i = 0; i < n - 1; i++) m[i + 2] = (y[i + 1] - y[i]) / (x[i + 1] - x[i]);
+  m[1] = 2 * m[2] - m[3]; m[0] = 2 * m[1] - m[2];
+  m[n + 1] = 2 * m[n] - m[n - 1]; m[n + 2] = 2 * m[n + 1] - m[n];
+  const t = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const w1 = Math.abs(m[i + 3] - m[i + 2]), w2 = Math.abs(m[i + 1] - m[i]);
+    t[i] = (w1 + w2) === 0 ? (m[i + 1] + m[i + 2]) / 2 : (w1 * m[i + 1] + w2 * m[i + 2]) / (w1 + w2);
+  }
+  return t;
+}
+function hermiteEval(x, y, m, q) {
+  const n = x.length;
+  if (n === 1) return y[0];
+  if (q <= x[0]) return y[0] + m[0] * (q - x[0]);
+  if (q >= x[n - 1]) return y[n - 1] + m[n - 1] * (q - x[n - 1]);
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] > q) hi = mid; else lo = mid; }
+  const h = x[hi] - x[lo], t = (q - x[lo]) / h, t2 = t * t, t3 = t2 * t;
+  return (2 * t3 - 3 * t2 + 1) * y[lo] + (t3 - 2 * t2 + t) * h * m[lo] + (-2 * t3 + 3 * t2) * y[hi] + (t3 - t2) * h * m[hi];
+}
+
+/* ---------- natural cubic spline ---------- */
+function naturalSplineFn(x, y) {
+  const n = x.length;
+  if (n < 3) return linearFn(x, y);
+  const h = [], M = new Array(n).fill(0);
+  for (let i = 0; i < n - 1; i++) h.push(x[i + 1] - x[i]);
+  const a = new Array(n).fill(0), b = new Array(n).fill(1), c = new Array(n).fill(0), r = new Array(n).fill(0);
+  for (let i = 1; i < n - 1; i++) {
+    a[i] = h[i - 1]; b[i] = 2 * (h[i - 1] + h[i]); c[i] = h[i];
+    r[i] = 6 * ((y[i + 1] - y[i]) / h[i] - (y[i] - y[i - 1]) / h[i - 1]);
+  }
+  for (let i = 1; i < n; i++) { const w = a[i] / b[i - 1]; b[i] -= w * c[i - 1]; r[i] -= w * r[i - 1]; }
+  M[n - 1] = r[n - 1] / b[n - 1];
+  for (let i = n - 2; i >= 0; i--) M[i] = (r[i] - c[i] * M[i + 1]) / b[i];
+  const s0 = (y[1] - y[0]) / h[0] - h[0] * M[1] / 6;
+  const s1 = (y[n - 1] - y[n - 2]) / h[n - 2] + h[n - 2] * M[n - 2] / 6;
+  return function (q) {
+    if (q <= x[0]) return y[0] + s0 * (q - x[0]);
+    if (q >= x[n - 1]) return y[n - 1] + s1 * (q - x[n - 1]);
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] > q) hi = mid; else lo = mid; }
+    const hh = h[lo], A = x[hi] - q, B = q - x[lo];
+    return M[lo] * A * A * A / (6 * hh) + M[hi] * B * B * B / (6 * hh) + (y[lo] / hh - M[lo] * hh / 6) * A + (y[hi] / hh - M[hi] * hh / 6) * B;
+  };
+}
+function linearFn(x, y) {
+  const n = x.length;
+  return function (q) {
+    if (n === 1) return y[0];
+    if (q <= x[0]) return y[0];
+    if (q >= x[n - 1]) return y[n - 1];
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] > q) hi = mid; else lo = mid; }
+    return y[lo] + (y[hi] - y[lo]) * (q - x[lo]) / (x[hi] - x[lo]);
+  };
+}
+
+/* ---------- penalized (smoothing) spline: Whittaker form, banded Cholesky ---------- */
+function smoothingSpline(y, w, lambda) {
+  const n = y.length;
+  if (n < 4) return y.slice();
+  const d0 = new Float64Array(n), d1 = new Float64Array(n), d2 = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let m = 6; if (i === 0 || i === n - 1) m = 1; else if (i === 1 || i === n - 2) m = 5;
+    d0[i] = w[i] + lambda * m;
+  }
+  for (let i = 0; i < n - 1; i++) d1[i] = lambda * ((i === 0 || i === n - 2) ? -2 : -4);
+  for (let i = 0; i < n - 2; i++) d2[i] = lambda;
+  const A = (i, j) => { const k = Math.abs(i - j); const lo = Math.min(i, j); return k === 0 ? d0[i] : k === 1 ? d1[lo] : k === 2 ? d2[lo] : 0; };
+  const L = Array.from({ length: n }, () => [0, 0, 0]); // L[i][i-j]
+  for (let j = 0; j < n; j++) {
+    let v = A(j, j);
+    for (let k = Math.max(0, j - 2); k < j; k++) v -= L[j][j - k] * L[j][j - k];
+    L[j][0] = Math.sqrt(Math.max(v, 1e-12));
+    for (let i = j + 1; i <= Math.min(n - 1, j + 2); i++) {
+      let s = A(i, j);
+      for (let k = Math.max(0, i - 2); k < j; k++) s -= L[i][i - k] * L[j][j - k];
+      L[i][i - j] = s / L[j][0];
+    }
+  }
+  const rhs = new Float64Array(n), z = new Float64Array(n), out = new Array(n);
+  for (let i = 0; i < n; i++) rhs[i] = w[i] * y[i];
+  for (let i = 0; i < n; i++) {
+    let s = rhs[i];
+    for (let k = Math.max(0, i - 2); k < i; k++) s -= L[i][i - k] * z[k];
+    z[i] = s / L[i][0];
+  }
+  for (let i = n - 1; i >= 0; i--) {
+    let s = z[i];
+    for (let k = i + 1; k <= Math.min(n - 1, i + 2); k++) s -= L[k][k - i] * out[k];
+    out[i] = s / L[i][0];
+  }
+  return out;
+}
+
+/* ---------- gap filling ---------- */
+function gapRuns(mask) {
+  const runs = []; let s = -1;
+  for (let i = 0; i < mask.length; i++) {
+    if (mask[i] && s < 0) s = i;
+    if (!mask[i] && s >= 0) { runs.push([s, i - 1]); s = -1; }
+  }
+  if (s >= 0) runs.push([s, mask.length - 1]);
+  return runs;
+}
+function fillGaps(y, mask, method, opt) {
+  const n = y.length, out = y.slice();
+  const K = opt.K || 6;
+  if (method === 'smooth') {
+    const w = mask.map(m => m ? 0 : 1);
+    const z = smoothingSpline(y.map((v, i) => mask[i] ? 0 : v), w, opt.lambda || 50);
+    // keep measured values at valid samples? no: a smoothing spline smooths everywhere
+    return z;
+  }
+  for (const [s, e] of gapRuns(mask)) {
+    const xs = [], ys = [];
+    let c = 0;
+    for (let i = s - 1; i >= 0 && c < K; i--) if (!mask[i]) { xs.unshift(i); ys.unshift(y[i]); c++; }
+    c = 0;
+    for (let i = e + 1; i < n && c < K; i++) if (!mask[i]) { xs.push(i); ys.push(y[i]); c++; }
+    if (!xs.length) continue;
+    let f;
+    if (method === 'linear') f = linearFn(xs, ys);
+    else if (method === 'cubic') f = naturalSplineFn(xs, ys);
+    else if (method === 'pchip') { const m = pchipSlopes(xs, ys); f = q => hermiteEval(xs, ys, m, q); }
+    else { const m = akimaSlopes(xs, ys); f = q => hermiteEval(xs, ys, m, q); }
+    for (let i = s; i <= e; i++) out[i] = f(i);
+  }
+  return out;
+}
+
+/* ---------- Butterworth low-pass, zero lag ---------- */
+function butterLP(x, fc, fs) {
+  const n = x.length;
+  if (fc >= fs / 2 * 0.98) return x.slice();
+  const wc = Math.tan(Math.PI * fc / fs), K1 = Math.SQRT2 * wc, K2 = wc * wc;
+  const a0 = K2 / (1 + K1 + K2), a1 = 2 * a0, a2 = a0, K3 = a1 / K2, b1 = -2 * a0 + K3, b2 = 1 - 2 * a0 - K3;
+  const pass = s => {
+    const o = new Array(s.length); o[0] = s[0]; o[1] = s[1];
+    for (let i = 2; i < s.length; i++) o[i] = a0 * s[i] + a1 * s[i - 1] + a2 * s[i - 2] + b1 * o[i - 1] + b2 * o[i - 2];
+    return o;
+  };
+  const pad = Math.max(10, Math.min(n - 2, Math.round(1.5 * fs / fc) + 10));
+  const p = [];
+  for (let i = pad; i >= 1; i--) p.push(2 * x[0] - x[Math.min(n - 1, i)]);
+  for (let i = 0; i < n; i++) p.push(x[i]);
+  for (let i = 1; i <= pad; i++) p.push(2 * x[n - 1] - x[Math.max(0, n - 1 - i)]);
+  let f = pass(p); f.reverse(); f = pass(f); f.reverse();
+  return f.slice(pad, pad + n);
+}
+
+/* ---------- stats helpers ---------- */
+const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+const sd = a => { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) * (v - m), 0) / Math.max(1, a.length - 1)); };
+const rms = a => Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
+const maxOf = a => a.reduce((m, v) => v > m ? v : m, -Infinity);
+const minOf = a => a.reduce((m, v) => v < m ? v : m, Infinity);
+const maxAbs = a => a.reduce((m, v) => Math.abs(v) > m ? Math.abs(v) : m, 0);
+function percentile(a, p) {
+  const s = a.slice().sort((x, y) => x - y);
+  const k = (s.length - 1) * p, f = Math.floor(k), c = Math.min(s.length - 1, f + 1);
+  return s[f] + (s[c] - s[f]) * (k - f);
+}
+
+/* ---------- task data ---------- */
+const TASKS = {
+  walk: {
+    label: 'Walking', T: 1.1, impacts: [0.0], staTimes: [0.0, 0.70],
+    kneeKeys: [[0, 5], [0.077, 11], [0.154, 18], [0.264, 12], [0.396, 5], [0.528, 10], [0.638, 32], [0.704, 52], [0.803, 63], [0.902, 45], [0.99, 16], [1.056, 6], [1.1, 5]],
+    grfKeys: [[0, 0, 0], [0.022, 0.35, 0], [0.066, 0.85, 0], [0.165, 1.10, 0], [0.33, 0.80, 0], [0.495, 1.08, 0], [0.616, 0.80, 0], [0.66, 0.3, 0], [0.682, 0, 0], [1.1, 0, 0]],
+    gapPresets: [[0.60, 5], [0.80, 15], [0.33, 40]], defaultGapT: 0.80, kinCut: 8,
+    flagLabel: 'Gait cycle, right leg'
+  },
+  cmj: {
+    label: 'Countermovement jump', T: 3.4, impacts: [2.26], staTimes: [1.80, 2.26],
+    kneeKeys: [[0, 4], [0.8, 4], [1.05, 30], [1.3, 80], [1.45, 95], [1.65, 40], [1.8, 8], [1.93, 24], [2.1, 20], [2.26, 9], [2.34, 25], [2.55, 78], [2.8, 45], [3.2, 6], [3.4, 4]],
+    grfKeys: [[0, 1, 0], [0.8, 1, 0], [0.95, 0.85, 0], [1.10, 0.62, 0], [1.25, 0.9, 0], [1.35, 1.4, 1], [1.45, 1.9, 1], [1.58, 2.15, 1], [1.68, 2.1, 1], [1.76, 1.2, 1], [1.80, 0, 0], [2.26, 0, 0], [2.285, 2.0, 2], [2.315, 3.4, 2], [2.35, 2.7, 2], [2.42, 1.6, 2], [2.55, 1.1, 2], [2.75, 0.9, 2], [3.0, 1.05, 0], [3.2, 1, 0], [3.4, 1, 0]],
+    gapPresets: [[1.20, 5], [1.45, 15], [2.40, 40]], defaultGapT: 1.45, kinCut: 10, takeoff: 1.80, landing: 2.26,
+    flagLabel: 'Countermovement jump'
+  }
+};
+const _cache = {};
+function buildTask(key) {
+  if (_cache[key]) return _cache[key];
+  const T0 = TASKS[key], fsK = 100, fsF = 1000;
+  const nK = Math.round(T0.T * fsK) + 1, nF = Math.round(T0.T * fsF) + 1;
+  const kx = T0.kneeKeys.map(p => p[0]), ky = T0.kneeKeys.map(p => p[1]), km = pchipSlopes(kx, ky);
+  const tk = [], knee = [];
+  for (let i = 0; i < nK; i++) { const t = i / fsK; tk.push(t); knee.push(hermiteEval(kx, ky, km, t)); }
+  const tf = []; for (let i = 0; i < nF; i++) tf.push(i / fsF);
+  const force = key === 'walk' ? walkForce(T0, nF, fsF) : cmjForce(T0, nF, fsF);
+  return (_cache[key] = Object.assign({ key, fsK, fsF, nK, nF, tk, knee, tf, force }, T0));
+}
+function walkForce(T0, nF, fsF) {
+  const x = T0.grfKeys.map(p => p[0]), y = T0.grfKeys.map(p => p[1]), m = pchipSlopes(x, y);
+  const F = new Array(nF);
+  for (let i = 0; i < nF; i++) F[i] = hermiteEval(x, y, m, i / fsF) * BWN;
+  return F;
+}
+function cmjForce(T0, nF, fsF) {
+  const base = T0.grfKeys;
+  const build = (sp, sl) => {
+    const x = base.map(p => p[0]);
+    const y = base.map(p => 1 + (p[2] === 1 ? sp : p[2] === 2 ? sl : 1) * (p[1] - 1));
+    const m = pchipSlopes(x, y), F = new Array(nF);
+    for (let i = 0; i < nF; i++) F[i] = hermiteEval(x, y, m, i / fsF);
+    return F;
+  };
+  const integ = (F, i0, i1) => { let s = 0; for (let i = i0; i < i1; i++) s += ((F[i] + F[i + 1]) / 2 - 1) / fsF; return s * G; };
+  const iTO = Math.round(T0.takeoff * fsF), iL = Math.round(T0.landing * fsF);
+  const vT = G * (T0.landing - T0.takeoff) / 2;
+  let lo = 0.2, hi = 4;
+  for (let k = 0; k < 60; k++) { const mid = (lo + hi) / 2; if (integ(build(mid, 1), 0, iTO) < vT) lo = mid; else hi = mid; }
+  const sp = (lo + hi) / 2;
+  lo = 0.2; hi = 4;
+  for (let k = 0; k < 60; k++) { const mid = (lo + hi) / 2; if (integ(build(sp, mid), iL, nF - 1) < vT) lo = mid; else hi = mid; }
+  const sl = (lo + hi) / 2;
+  return build(sp, sl).map(v => v * BWN);
+}
+
+/* ---------- module 2: gaps ---------- */
+function gapMask(n, gaps, fs) {
+  const mask = new Array(n).fill(false);
+  for (const g of gaps) {
+    const c = Math.round(g.c * fs), half = (g.len - 1) / 2;
+    const s = Math.round(c - half), e = s + g.len - 1;
+    for (let i = Math.max(0, s); i <= Math.min(n - 1, e); i++) mask[i] = true;
+  }
+  return mask;
+}
+function noisySignal(truth, sigma, seed) {
+  const rng = mulberry32(seed);
+  return truth.map(v => v + gauss(rng) * sigma);
+}
+function gapMetrics(truth, filled, mask) {
+  const err = [];
+  for (let i = 0; i < truth.length; i++) if (mask[i]) err.push(filled[i] - truth[i]);
+  if (!err.length) return { rmse: 0, max: 0, peak: null };
+  let peak = null;
+  const runs = gapRuns(mask);
+  let ip = 0; for (let i = 1; i < truth.length; i++) if (truth[i] > truth[ip]) ip = i;
+  for (const [s, e] of runs) {
+    if (ip >= s && ip <= e) { let mf = -Infinity, mt = -Infinity; for (let i = s; i <= e; i++) { mf = Math.max(mf, filled[i]); mt = Math.max(mt, truth[i]); } peak = mf - mt; }
+  }
+  return { rmse: rms(err), max: maxAbs(err), peak };
+}
+
+/* ---------- module 3: artifacts and checks ---------- */
+const KIN_PROBLEMS = {
+  sta: 'Soft-tissue artifact', spike: 'Marker swap or ghost marker', offset: 'Marker misplacement', noise: 'Noisy capture', over: 'Filter cutoff too low'
+};
+const FOR_PROBLEMS = { zero: 'Plate not zeroed, drift', hum: 'Electrical hum and noise', ring: 'Impact ringing', clip: 'Amplifier clipping' };
+function dampedRing(t, t0, f, tau, amp) {
+  if (t < t0) return 0;
+  const d = t - t0; return amp * Math.exp(-d / tau) * Math.sin(2 * Math.PI * f * d);
+}
+function kinSignal(task, prob) {
+  const n = task.nK, fs = task.fsK, rb = mulberry32(777);
+  const bn = task.knee.map(() => 0.25 * gauss(rb));
+  const cut = task.kinCut;
+  const clean = butterLP(task.knee.map((v, i) => v + bn[i]), cut, fs);
+  const P = prob || {};
+  const on = k => P[k] && P[k].on ? P[k].v : 0;
+  const r3 = mulberry32(99);
+  const y = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = task.tk[i];
+    let v = task.knee[i];
+    const o = on('offset');
+    if (o) v = v * (1 + 0.07 * o) + 9 * o;
+    const s = on('sta');
+    if (s) {
+      for (const t0 of task.staTimes) v += dampedRing(t, t0, 9, 0.09, 7 * s);
+      v += 0.06 * s * task.knee[i] * Math.sin(2 * Math.PI * 1.3 * t + 1);
+    }
+    const nz = on('noise');
+    v += bn[i] + (nz ? 2.4 * nz * gauss(r3) : 0);
+    y[i] = v;
+  }
+  const sp = on('spike');
+  if (sp) {
+    const cnt = Math.round(2 + 6 * sp), rs = mulberry32(31337);
+    for (let k = 0; k < cnt; k++) { const i = 3 + Math.floor(rs() * (n - 6)); y[i] += (rs() < 0.5 ? -1 : 1) * (12 + 14 * rs()) * (0.5 + 0.5 * sp); }
+  }
+  const ov = on('over');
+  const fc = ov ? Math.max(1.2, cut * (1 - 0.82 * ov)) : cut;
+  const proc = butterLP(y, fc, fs);
+  return { clean, proc, raw: y, fc };
+}
+function derivative(y, fs) {
+  const n = y.length, d = new Array(n);
+  for (let i = 1; i < n - 1; i++) d[i] = (y[i + 1] - y[i - 1]) * fs / 2;
+  d[0] = (y[1] - y[0]) * fs; d[n - 1] = (y[n - 1] - y[n - 2]) * fs;
+  return d;
+}
+function forceSignal(task, prob) {
+  const n = task.nF, rb = mulberry32(2024);
+  const bn = task.force.map(() => 1.4 * gauss(rb));
+  const clean = task.force.map((v, i) => v + bn[i]);
+  const P = prob || {};
+  const on = k => P[k] && P[k].on ? P[k].v : 0;
+  const rs = mulberry32(555);
+  const out = new Array(n);
+  const peakT = maxOf(task.force);
+  const z = on('zero'), h = on('hum'), r = on('ring'), c = on('clip');
+  for (let i = 0; i < n; i++) {
+    const t = task.tf[i];
+    let v = clean[i];
+    if (z) v += 70 * z + 30 * z * t;
+    if (h) v += 30 * h * Math.sin(2 * Math.PI * 60 * t) + 8 * h * gauss(rs);
+    if (r) for (const t0 of task.impacts) v += dampedRing(t, t0, 95, 0.04, 0.35 * BWN * r);
+    out[i] = v;
+  }
+  if (c) { const lvl = peakT * (1 - 0.5 * c); for (let i = 0; i < n; i++) if (out[i] > lvl) out[i] = lvl; }
+  return { clean, proc: out };
+}
+function longestBelow(F, fs, thr, minDur) {
+  let best = null, s = -1;
+  for (let i = 0; i <= F.length; i++) {
+    const below = i < F.length && F[i] < thr;
+    if (below && s < 0) s = i;
+    if (!below && s >= 0) { const len = i - s; if (len / fs >= minDur && (!best || len > best.len)) best = { s, e: i - 1, len }; s = -1; }
+  }
+  return best;
+}
+function cmjHeights(F, fs) {
+  const fl = longestBelow(F, fs, 20, 0.1);
+  if (!fl) return { found: false };
+  const tf = fl.len / fs;
+  const hFT = G * tf * tf / 8;
+  const a = Math.round(0.1 * fs), b = Math.round(0.7 * fs);
+  const bw = mean(F.slice(a, b));
+  let v = 0;
+  for (let i = 0; i < fl.s; i++) v += ((F[i] + F[i + 1]) / 2 - bw) / MASS / fs;
+  const hIM = v > 0 ? v * v / (2 * G) : 0;
+  return { found: true, tf, hFT, hIM, bw };
+}
+function status(v, warn, fail) { return v > fail ? 'fail' : v > warn ? 'warn' : 'ok'; }
+function qualityChecks(task, kin, frc) {
+  const out = [];
+  const fsK = task.fsK, fsF = task.fsF;
+  const pkC = maxOf(kin.clean), pkP = maxOf(kin.proc);
+  out.push({ g: 'Kinematics', label: 'Peak knee flexion', value: pkP.toFixed(1) + '\u00b0', ref: 'clean ' + pkC.toFixed(1) + '\u00b0',
+    s: status(Math.abs(pkP - pkC), 2, 6), tip: 'Marker offsets, soft-tissue motion, and heavy filtering all change the peak you report.' });
+  const jump = task.key === 'walk' ? 8 : 12;
+  let jumps = 0; for (let i = 1; i < kin.raw.length; i++) if (Math.abs(kin.raw[i] - kin.raw[i - 1]) > jump) jumps++;
+  out.push({ g: 'Kinematics', label: 'Implausible frame-to-frame jumps', value: String(jumps), ref: 'expect 0 (> ' + jump + '\u00b0 per frame)',
+    s: jumps > 0 ? 'fail' : 'ok', tip: 'Look for swapped or ghost markers, then relabel or gap-fill. Do not filter spikes away.' });
+  const vC = derivative(kin.clean, fsK), vP = derivative(kin.proc, fsK);
+  const vpkC = maxAbs(vC), vpkP = maxAbs(vP);
+  out.push({ g: 'Kinematics', label: 'Peak angular velocity', value: Math.round(vpkP) + ' deg/s', ref: 'clean ' + Math.round(vpkC) + ' deg/s',
+    s: status(Math.abs(vpkP - vpkC) / vpkC, 0.15, 0.4), tip: 'Differentiating amplifies noise. A noisy angle can look fine and still give a wild velocity.' });
+  const vErr = rms(vP.map((v, i) => v - vC[i]));
+  out.push({ g: 'Kinematics', label: 'Velocity error versus clean (RMS)', value: Math.round(vErr) + ' deg/s', ref: 'aim for under 30',
+    s: status(vErr, 30, 100), tip: 'Compare derivatives, not only the angle curve, before trusting a trial.' });
+  // kinetics
+  const FP = frc.proc, FC = frc.clean;
+  let offIdx0, offIdx1;
+  if (task.key === 'walk') { offIdx0 = Math.round(0.76 * fsF); offIdx1 = FP.length; }
+  else { offIdx0 = Math.round(1.84 * fsF); offIdx1 = Math.round(2.22 * fsF); }
+  const offSeg = FP.slice(offIdx0, offIdx1);
+  const offMean = mean(offSeg), offSd = sd(offSeg);
+  out.push({ g: 'Kinetics', label: task.key === 'walk' ? 'Force while the foot is off the plate' : 'Force during flight', value: offMean.toFixed(1) + ' N', ref: 'expect about 0 N',
+    s: status(Math.abs(offMean), 8, 25), tip: 'Zero the plate with nothing on it. Unloaded periods are a free baseline check.' });
+  out.push({ g: 'Kinetics', label: 'Noise while unloaded (SD)', value: offSd.toFixed(1) + ' N', ref: 'clean ' + sd(FC.slice(offIdx0, offIdx1)).toFixed(1) + ' N',
+    s: status(offSd, 4, 12), tip: 'Hum, cable movement, and grounding show up here before they show up in your outcome.' });
+  const pF = maxOf(FP) / BWN, pC = maxOf(FC) / BWN;
+  out.push({ g: 'Kinetics', label: 'Peak vertical force', value: pF.toFixed(2) + ' BW', ref: 'clean ' + pC.toFixed(2) + ' BW',
+    s: status(Math.abs(pF - pC) / pC, 0.05, 0.15), tip: 'Clipping flattens peaks; ringing and noise inflate them. Check the shape, not just the number.' });
+  if (task.key === 'cmj') {
+    const hh = cmjHeights(FP, fsF), hc = cmjHeights(FC, fsF);
+    if (!hh.found) {
+      out.push({ g: 'Kinetics', label: 'Jump height, flight time vs impulse', value: 'flight not found', ref: 'should agree within 1 cm', s: 'fail', tip: 'Offset or noise kept the force above the 20 N threshold, so takeoff and landing cannot be detected.' });
+    } else {
+      const diff = Math.abs(hh.hFT - hh.hIM) * 100;
+      out.push({ g: 'Kinetics', label: 'Jump height, flight time vs impulse', value: (hh.hFT * 100).toFixed(1) + ' vs ' + (hh.hIM * 100).toFixed(1) + ' cm', ref: 'clean ' + (hc.hFT * 100).toFixed(1) + ' vs ' + (hc.hIM * 100).toFixed(1) + ' cm',
+        s: status(diff, 1.5, 4), tip: 'Two independent methods should agree. A gap means the force or the event detection is off.' });
+    }
+    const q0 = Math.round(0.1 * fsF), q1 = Math.round(0.7 * fsF);
+    const qs = FP.slice(q0, q1), qm = mean(qs);
+    out.push({ g: 'Kinetics', label: 'Quiet-standing weight', value: (qm / BWN * 100).toFixed(1) + '% of body weight', ref: 'expect 100%',
+      s: status(Math.abs(qm / BWN - 1), 0.015, 0.04), tip: 'Compare the plate with a scale reading before the session.' });
+  } else {
+    const i1 = Math.round(0.682 * fsF);
+    const imp = a => { let s = 0; for (let i = 0; i < i1; i++) s += (a[i] + a[i + 1]) / 2 / fsF; return s; };
+    const iP = imp(FP), iC = imp(FC);
+    out.push({ g: 'Kinetics', label: 'Vertical impulse during stance', value: Math.round(iP) + ' N\u00b7s', ref: 'clean ' + Math.round(iC) + ' N\u00b7s',
+      s: status(Math.abs(iP - iC) / iC, 0.04, 0.1), tip: 'Impulse adds up every error in the stance phase, so it is a sensitive check.' });
+  }
+  const rank = { ok: 0, warn: 1, fail: 2 };
+  const worst = out.reduce((m, c) => rank[c.s] > rank[m] ? c.s : m, 'ok');
+  return { checks: out, worst };
+}
+
+/* ---------- module 1: marker clusters ---------- */
+function jacobiEig(Ain) {
+  const n = 4, A = Ain.map(r => r.slice()), V = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+  for (let sweep = 0; sweep < 30; sweep++) {
+    let off = 0; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) off += A[i][j] * A[i][j];
+    if (off < 1e-18) break;
+    for (let p = 0; p < n - 1; p++) for (let q = p + 1; q < n; q++) {
+      if (Math.abs(A[p][q]) < 1e-30) continue;
+      const th = (A[q][q] - A[p][p]) / (2 * A[p][q]);
+      const t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1));
+      const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < n; k++) { const kp = A[k][p], kq = A[k][q]; A[k][p] = c * kp - s * kq; A[k][q] = s * kp + c * kq; }
+      for (let k = 0; k < n; k++) { const pk = A[p][k], qk = A[q][k]; A[p][k] = c * pk - s * qk; A[q][k] = s * pk + c * qk; }
+      for (let k = 0; k < n; k++) { const kp = V[k][p], kq = V[k][q]; V[k][p] = c * kp - s * kq; V[k][q] = s * kp + c * kq; }
+    }
+  }
+  return { vals: [A[0][0], A[1][1], A[2][2], A[3][3]], V };
+}
+// Horn's absolute-orientation: quaternion rotating reference P onto measured Q (both centred)
+function hornQuat(P, Q) {
+  let Sxx = 0, Sxy = 0, Sxz = 0, Syx = 0, Syy = 0, Syz = 0, Szx = 0, Szy = 0, Szz = 0;
+  for (let i = 0; i < P.length; i++) {
+    const p = P[i], q = Q[i];
+    Sxx += p[0] * q[0]; Sxy += p[0] * q[1]; Sxz += p[0] * q[2];
+    Syx += p[1] * q[0]; Syy += p[1] * q[1]; Syz += p[1] * q[2];
+    Szx += p[2] * q[0]; Szy += p[2] * q[1]; Szz += p[2] * q[2];
+  }
+  const N = [
+    [Sxx + Syy + Szz, Syz - Szy, Szx - Sxz, Sxy - Syx],
+    [Syz - Szy, Sxx - Syy - Szz, Sxy + Syx, Szx + Sxz],
+    [Szx - Sxz, Sxy + Syx, -Sxx + Syy - Szz, Syz + Szy],
+    [Sxy - Syx, Szx + Sxz, Syz + Szy, -Sxx - Syy + Szz]];
+  const { vals, V } = jacobiEig(N);
+  let k = 0; for (let i = 1; i < 4; i++) if (vals[i] > vals[k]) k = i;
+  let q = [V[0][k], V[1][k], V[2][k], V[3][k]];
+  if (q[0] < 0) q = q.map(v => -v);
+  return q;
+}
+function quatToRotvec(q) {
+  const w = Math.min(1, Math.max(-1, q[0])), vn = Math.hypot(q[1], q[2], q[3]);
+  if (vn < 1e-12) return [0, 0, 0];
+  const ang = 2 * Math.atan2(vn, w);
+  return [q[1] / vn * ang, q[2] / vn * ang, q[3] / vn * ang];
+}
+const RAD = Math.PI / 180;
+function centre(P) { const c = [0, 1, 2].map(k => mean(P.map(p => p[k]))); return { c, P: P.map(p => [p[0] - c[0], p[1] - c[1], p[2] - c[2]]) }; }
+// markers: [{x, s}] in mm (x anterior, s distal along the segment); r = segment radius; any number of markers >= 2
+function clusterAnalysis(markers, r, sigma, trials) {
+  const N = markers.length;
+  const P0 = markers.map(m => { const x = Math.max(-r, Math.min(r, m.x)); return [x, m.s, Math.sqrt(Math.max(0, r * r - x * x))]; });
+  const ref = centre(P0).P;
+  let bi = 0, bj = 1, bd = 0;
+  for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) { const d = bd3(P0[j].map((v, q) => v - P0[i][q])); if (d > bd) { bd = d; bi = i; bj = j; } }
+  const a = P0[bj].map((v, q) => v - P0[bi][q]);
+  let height = 0;
+  for (let k = 0; k < N; k++) {
+    if (k === bi || k === bj) continue;
+    const b = P0[k].map((v, q) => v - P0[bi][q]);
+    const cr = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    height = Math.max(height, bd3(cr) / (bd || 1));
+  }
+  const rng = mulberry32(12345);
+  const axial = [], tilt = [];
+  for (let t = 0; t < trials; t++) {
+    const Q = P0.map(p => [p[0] + gauss(rng) * sigma, p[1] + gauss(rng) * sigma, p[2] + gauss(rng) * sigma]);
+    const rv = quatToRotvec(hornQuat(ref, centre(Q).P));
+    axial.push(rv[1] / RAD); tilt.push(Math.hypot(rv[0], rv[2]) / RAD);
+  }
+  const absAx = axial.map(Math.abs);
+  return { n: N, base: bd, height, ratio: height / (bd || 1), axial, tilt, p95: percentile(absAx, 0.95), sd: sd(axial), tiltP95: percentile(tilt, 0.95), worst: Math.max(percentile(absAx, 0.95), percentile(tilt, 0.95)) };
+}
+// worst-case twist error when any one marker is lost
+function lossAnalysis(markers, r, sigma, trials) {
+  if (markers.length < 3) return { worst: 180, lost: true };
+  let worst = 0;
+  for (let i = 0; i < markers.length; i++) worst = Math.max(worst, clusterAnalysis(markers.filter((_, k) => k !== i), r, sigma, trials).worst);
+  return { worst, lost: markers.length - 1 < 3 };
+}
+function bd3(a) { return Math.hypot(a[0], a[1], a[2]); }
+
+/* rotation helpers for cross-talk */
+function Rz(a) { const c = Math.cos(a), s = Math.sin(a); return [[c, -s, 0], [s, c, 0], [0, 0, 1]]; }
+function Ry(a) { const c = Math.cos(a), s = Math.sin(a); return [[c, 0, s], [0, 1, 0], [-s, 0, c]]; }
+function mul3(A, B) { const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) C[i][j] += A[i][k] * B[k][j]; return C; }
+// Z-X-Y Cardan: flexion (z), ab/adduction (x), rotation (y)
+function cardanZXY(R) {
+  const b = Math.asin(Math.max(-1, Math.min(1, R[2][1])));
+  const c = Math.atan2(-R[2][0], R[2][2]);
+  const a = Math.atan2(-R[0][1], R[1][1]);
+  return { flex: a / RAD, abd: b / RAD, rot: c / RAD };
+}
+function kneeAnglesWithAxialError(thetaDeg, dtDeg, dsDeg) {
+  const R = mul3(mul3(Ry(-dtDeg * RAD), Rz(thetaDeg * RAD)), Ry(dsDeg * RAD));
+  return cardanZXY(R);
+}
+// knee marker misplacement: reported flexion for true flexion theta (deg); dx anterior mm, dy superior mm
+function reportedFlexion(thetaDeg, dx, dy) {
+  const L1 = 420, L2 = 400, th = thetaDeg * RAD;
+  const knee = [0, -L1], est = [dx, -L1 + dy];
+  const ankle = [knee[0] + L2 * (-Math.sin(th)), knee[1] + L2 * (-Math.cos(th))];
+  const ta = [est[0], est[1]], sa = [ankle[0] - est[0], ankle[1] - est[1]];
+  const phi = v => Math.atan2(v[0], -v[1]);
+  return (phi(ta) - phi(sa)) / RAD;
+}
+
+
+/* knee joint center: static identification error for three methods (simplified teaching model) */
+function kneeCenterStudy(kneeCurve, palp, noise, romDeg, trials) {
+  const rng = mulberry32(2468);
+  const sFunc = Math.hypot(noise / Math.sin(Math.max(10, romDeg) / 2 * RAD), 2);
+  const sig = [palp, palp / Math.SQRT2, sFunc];
+  const sub = kneeCurve.filter((_, i) => i % 3 === 0);
+  const out = sig.map(() => ({ pts: [], rad: [], flex: [] }));
+  for (let t = 0; t < trials; t++) {
+    for (let m = 0; m < 3; m++) {
+      const ex = gauss(rng) * sig[m], ey = gauss(rng) * sig[m];
+      let pk = 0; for (const th of sub) pk = Math.max(pk, Math.abs(reportedFlexion(th, ex, ey) - th));
+      out[m].pts.push([ex, ey]); out[m].rad.push(Math.hypot(ex, ey)); out[m].flex.push(pk);
+    }
+  }
+  return out.map((o, m) => ({ sigma: sig[m], pts: o.pts, rad95: percentile(o.rad, 0.95), flex95: percentile(o.flex, 0.95) }));
+}
+
+
+</script>
+<script>
+/* ======================================================================
+   Motion lab interface
+   ====================================================================== */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+const COL = { truth: '#4DE0C8', meas: '#E7ECF4', prob: '#FF9F4A', raw: '#9FB0C8', band: 'rgba(255,200,90,.14)', band2: 'rgba(255,200,90,.45)' };
+const METHODS = [
+  { id: 'linear', name: 'Linear', color: '#FF7A8A', note: 'straight line between neighbors',
+    how: 'Draws a straight line from the last good frame before the gap to the first good frame after it. It uses two points, so it knows nothing about speed or curvature. Fine for a few frames on a smooth stretch; it cuts off any peak or valley inside the gap.' },
+  { id: 'cubic', name: 'Natural cubic spline', color: '#6EA8FF', note: 'smooth curve through nearby points',
+    how: 'Fits a cubic curve between each pair of nearby good points, then joins the pieces so position, slope, and curvature all match at every join. The curve passes through every point in the context window, noise included. It follows curvature well, but a short or noisy window can make it swing past the real peak.' },
+  { id: 'pchip', name: 'PCHIP', color: '#C792FF', note: 'shape-preserving cubic, never overshoots',
+    how: 'Also builds cubic pieces through the good points, but picks each point’s slope from its neighbors so the curve never rises above or falls below the points it connects. That rule prevents overshoot, and it also flattens peaks: where the data turns around, the slope is set to zero.' },
+  { id: 'akima', name: 'Akima spline', color: '#7BE495', note: 'cubic that resists wiggles near outliers',
+    how: 'Chooses each point’s slope from the slopes of the four nearest segments, giving more weight to the side that changes less. A single noisy point or sudden bend therefore has little pull on the curve. It tracks curvature better than PCHIP and wiggles less than the natural cubic.' },
+  { id: 'smooth', name: 'Smoothing spline', color: '#FFC857', note: 'penalized fit that also smooths measured data',
+    how: 'Does not force the curve through the data. It balances staying close to the measured points against keeping the curve smooth (a small second derivative), and the smoothing strength sets the balance. Frames inside a gap get zero weight, so the curve bridges them along the smoothest path. It also smooths the measured data, so every frame changes, not just the gaps.' }
+];
+
+const S = {
+  task: 'walk', tab: 'markers',
+  mk: {
+    thigh: [{ x: 130, y: 170 }, { x: 230, y: 170 }, { x: 180, y: 370 }, { x: 225, y: 290 }],
+    shank: [{ x: 145, y: 560 }, { x: 215, y: 560 }, { x: 180, y: 760 }, { x: 215, y: 680 }],
+    knee: { x: 194, y: 458 }, noise: 3, n: 3, palp: 6, rom: 60
+  },
+  gap: {
+    gaps: [], active: 0, on: { linear: true, cubic: true, pchip: false, akima: true, smooth: false },
+    K: 6, lambda: 50, sigma: 0.4, post: false, fc: 8, truth: true
+  },
+  q: {
+    kin: { sta: { on: false, v: .6 }, spike: { on: false, v: .5 }, offset: { on: false, v: .6 }, noise: { on: false, v: .6 }, over: { on: false, v: .6 } },
+    frc: { zero: { on: false, v: .6 }, hum: { on: false, v: .6 }, ring: { on: false, v: .6 }, clip: { on: false, v: .6 } },
+    clean: true
+  }
+};
+const task = () => buildTask(S.task);
+
+/* ------------------------------------------------------------------ plotting */
+function niceTicks(a, b, count) {
+  const span = b - a, step0 = span / count, mag = Math.pow(10, Math.floor(Math.log10(step0))), nrm = step0 / mag;
+  const step = (nrm < 1.5 ? 1 : nrm < 3 ? 2 : nrm < 7 ? 5 : 10) * mag, out = [];
+  for (let v = Math.ceil(a / step) * step; v <= b + 1e-9; v += step) out.push(Math.round(v / step) * step);
+  return out;
+}
+function makePlot(host, height) {
+  const wrap = document.createElement('div'); wrap.className = 'vp';
+  const cv = document.createElement('canvas'); cv.style.height = height + 'px';
+  const tip = document.createElement('div'); tip.className = 'tip';
+  wrap.append(cv, tip); host.append(wrap);
+  const P = { cv, tip, cfg: null, hover: null, drag: null };
+  P.draw = function (cfg) { P.cfg = cfg; P.paint(); };
+  P.paint = function () {
+    const cfg = P.cfg; if (!cfg) return;
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = height;
+    if (!w) return;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const bg = css('--vp') || '#0C1626', grid = css('--vp-line') || '#1E2F47', ax = css('--vp-ink') || '#8CA0BB';
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    const m = { l: 56, r: 14, t: 26, b: 30 };
+    const X = x => m.l + (x - cfg.x0) / (cfg.x1 - cfg.x0) * (w - m.l - m.r);
+    const Y = y => h - m.b - (y - cfg.y0) / (cfg.y1 - cfg.y0) * (h - m.t - m.b);
+    P.X = X; P.Y = Y; P.m = m; P.w = w;
+    ctx.font = '12px "Public Sans", system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = grid; ctx.lineWidth = 1; ctx.fillStyle = ax;
+    ctx.textAlign = 'right';
+    for (const v of niceTicks(cfg.y0, cfg.y1, 5)) { const y = Math.round(Y(v)) + .5; ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(w - m.r, y); ctx.stroke(); ctx.fillText(String(+v.toFixed(2)), m.l - 8, y); }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (const v of niceTicks(cfg.x0, cfg.x1, 8)) { const x = Math.round(X(v)) + .5; ctx.beginPath(); ctx.moveTo(x, m.t); ctx.lineTo(x, h - m.b); ctx.stroke(); ctx.fillText(String(+v.toFixed(2)), x, h - m.b + 6); }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(cfg.ylabel || '', m.l, 11);
+    ctx.textAlign = 'right'; ctx.fillText(cfg.xlabel || 'Time (s)', w - m.r, 11);
+    ctx.save(); ctx.beginPath(); ctx.rect(m.l, m.t, w - m.l - m.r, h - m.t - m.b); ctx.clip();
+    for (const b of cfg.bands || []) { ctx.fillStyle = b.fill || COL.band; ctx.fillRect(X(b.x0), m.t, X(b.x1) - X(b.x0), h - m.t - m.b); }
+    for (const a of cfg.areas || []) {
+      ctx.beginPath();
+      a.x.forEach((x, i) => i ? ctx.lineTo(X(x), Y(a.y1[i])) : ctx.moveTo(X(x), Y(a.y1[i])));
+      for (let i = a.x.length - 1; i >= 0; i--) ctx.lineTo(X(a.x[i]), Y(a.y2[i]));
+      ctx.closePath(); ctx.fillStyle = a.color; ctx.fill();
+    }
+    for (const s of cfg.series) {
+      ctx.globalAlpha = s.alpha == null ? 1 : s.alpha;
+      if (s.dots) {
+        ctx.fillStyle = s.color;
+        for (let i = 0; i < s.x.length; i++) { ctx.beginPath(); ctx.arc(X(s.x[i]), Y(s.y[i]), s.dots, 0, 6.2832); ctx.fill(); }
+      } else {
+        ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 1.6; ctx.lineJoin = 'round'; ctx.setLineDash(s.dash || []);
+        ctx.beginPath(); s.x.forEach((x, i) => i ? ctx.lineTo(X(x), Y(s.y[i])) : ctx.moveTo(X(x), Y(s.y[i]))); ctx.stroke(); ctx.setLineDash([]);
+        for (const [i0, i1] of s.hi || []) {
+          ctx.globalAlpha = 1; ctx.lineWidth = (s.width || 1.6) + 1.6; ctx.beginPath();
+          for (let i = i0; i <= i1; i++) i === i0 ? ctx.moveTo(X(s.x[i]), Y(s.y[i])) : ctx.lineTo(X(s.x[i]), Y(s.y[i]));
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    if (P.hover != null) {
+      const t = clamp(P.hover, cfg.x0, cfg.x1), x = Math.round(X(t)) + .5;
+      ctx.strokeStyle = 'rgba(232,238,247,.55)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, m.t); ctx.lineTo(x, h - m.b); ctx.stroke();
+      const lines = ['t = ' + t.toFixed(2) + ' s'];
+      for (const s of cfg.series) {
+        if (!s.label || s.dots) continue;
+        const i = nearest(s.x, t); if (i < 0 || !isFinite(s.y[i])) continue;
+        lines.push('<span style="color:' + s.color + '">\u25CF</span> ' + s.label + ' ' + (s.fmt ? s.fmt(s.y[i]) : f1(s.y[i])));
+      }
+      tip.innerHTML = lines.join('<br>'); tip.style.display = 'block';
+      const tw = tip.offsetWidth; tip.style.left = clamp(x + 12 > w - tw - 4 ? x - tw - 12 : x + 12, 4, w - tw - 4) + 'px'; tip.style.top = (m.t + 6) + 'px';
+    } else tip.style.display = 'none';
+  };
+  const tOf = e => { const r = cv.getBoundingClientRect(); const x = e.clientX - r.left; return cfg2t(P, x); };
+  cv.addEventListener('pointermove', e => { if (!P.cfg) return; P.hover = tOf(e); if (P.drag) P.drag(P.hover); else P.paint(); });
+  cv.addEventListener('pointerleave', () => { if (!P.dragging) { P.hover = null; P.paint(); } });
+  cv.addEventListener('pointerdown', e => { if (P.onPick) { P.dragging = true; cv.setPointerCapture(e.pointerId); P.drag = P.onPick; P.drag(tOf(e)); } });
+  const end = () => { P.dragging = false; P.drag = null; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  new ResizeObserver(() => P.paint()).observe(cv);
+  return P;
+}
+function cfg2t(P, x) { const m = P.m, c = P.cfg; return c.x0 + (x - m.l) / (P.w - m.l - m.r) * (c.x1 - c.x0); }
+function nearest(xs, t) {
+  const n = xs.length; if (!n) return -1;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] > t) hi = mid; else lo = mid; }
+  return Math.abs(xs[lo] - t) <= Math.abs(xs[hi] - t) ? lo : hi;
+}
+function legend(items) {
+  return '<div class="legend">' + items.map(i => '<span style="color:' + i.c + '"><i class="' + (i.k || '') + '"' + (i.k === 'dash' ? '' : ' style="background:' + i.c + '"') + '></i><b style="font-weight:500;color:var(--muted)">' + i.t + '</b></span>').join('') + '</div>';
+}
+function slider(id, label, min, max, step, val, fmt) {
+  return '<label class="sl"><span class="h"><span>' + label + '</span><output id="' + id + '-o">' + fmt(val) + '</output></span><input type="range" id="' + id + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '"></label>';
+}
+
+/* ================================================================== 1. MARKERS */
+const HIP = 50, KNEE = 470, ANK = 870, CX = 180;
+const PRESETS = {
+  line: { thigh: [[180, 150], [180, 260], [180, 380], [180, 205]], shank: [[180, 540], [180, 650], [180, 770], [180, 595]] },
+  near: { thigh: [[190, 150], [174, 260], [188, 380], [178, 205]], shank: [[190, 540], [172, 650], [188, 770], [184, 600]] },
+  spread: { thigh: [[130, 170], [230, 170], [180, 370], [225, 290]], shank: [[145, 560], [215, 560], [180, 760], [215, 680]] }
+};
+let mkUI = null;
+function initMarkers() {
+  const root = $('#tab-markers');
+  root.innerHTML =
+    '<div class="grid-markers">' +
+    '<aside class="rail"><div class="group"><h2>Markers on a segment</h2><p class="lead">Tracking markers fix a segment’s position and rotation, but only if they are not lined up. Drag the markers, pick how many to use, or start from a preset.</p></div>' +
+    '<div class="group"><h3>Presets</h3><div class="btns"><button class="btn" data-p="line">In a line down the limb</button><button class="btn" data-p="near">Almost in a line</button><button class="btn" data-p="spread">Spread cluster</button></div></div>' +
+    '<div class="group"><h3>Markers per segment</h3><div class="btns" id="mk-n"><button class="btn" data-n="2">2</button><button class="btn on" data-n="3">3</button><button class="btn" data-n="4">4</button></div></div>' +
+    slider('mk-noise', 'Marker noise and skin movement', 0, 8, 0.5, S.mk.noise, v => v + ' mm') +
+    '<p class="lead">Each readout simulates 300 trials. In every trial the markers are shifted by random noise, and the segment’s orientation is re-estimated from them.</p>' +
+    '<div class="group"><h3>Knee marker</h3><p class="lead">The pink marker should sit on the lateral epicondyle, at the cross-hair. See what a miss does to the knee angle.</p><div class="btns"><button class="btn" id="mk-knee0">Place on epicondyle</button></div></div></aside>' +
+    '<div class="limbbox"><svg id="limb" viewBox="0 0 360 920" role="group" aria-label="Lateral view of the thigh and shank with draggable markers"></svg></div>' +
+    '<div class="results stack"><div class="cards" id="mk-cards"></div>' +
+    '<div class="panel"><h3>How much the thigh and shank can twist unnoticed</h3><p class="cap">Error in rotation about the long axis across 300 noisy trials. Narrow and centered is good. Wide means the cluster cannot tell a twist from noise.</p><div id="mk-hist"></div>' + legend([{ c: '#FF9A57', t: 'Thigh cluster' }, { c: '#3CCBDB', t: 'Shank cluster' }]) + '</div>' +
+    '<div class="panel"><h3>What the knee reports for this movement</h3><p class="cap">The true knee only flexes. Any abduction or rotation in the report is cross-talk from marker problems.</p><div id="mk-knee"></div><div id="mk-kleg"></div><div class="note" id="mk-note"></div></div>' +
+    '<div class="panel"><h3>Two, three, or four markers?</h3><p class="cap">The table re-estimates each segment’s orientation using only the first 2, 3, or 4 markers on the limb, with the same noise. The last column repeats it after losing the worst single marker.</p><div class="scroll"><table class="m" id="mk-ntab"></table></div><div class="note" id="mk-nnote"></div></div>' +
+    '<div class="panel"><h3>Three ways to find the knee joint center</h3><p class="cap">Each dot is one simulated session. The cross-hair is the true center. The pink dot is where your own knee marker above puts it, using the one-lateral-marker method.</p>' +
+    '<div class="two">' + slider('mk-palp', 'Palpation error of an examiner (SD)', 0, 15, 1, S.mk.palp, v => v + ' mm') + slider('mk-rom', 'Knee range of motion in the functional trial', 20, 120, 5, S.mk.rom, v => v + '\u00b0') + '</div>' +
+    '<div id="mk-kc"></div><div id="mk-kcleg"></div><div class="scroll"><table class="m" id="mk-kctab"></table></div><div class="note" id="mk-kcnote"></div></div></div></div>';
+  const svg = $('#limb');
+  svg.innerHTML =
+    '<text x="180" y="22" text-anchor="middle">Lateral view · anterior to the right</text>' +
+    '<rect class="seg-fill" x="105" y="' + HIP + '" width="150" height="' + (KNEE - HIP) + '" rx="46"/>' +
+    '<rect class="seg-fill" x="130" y="' + KNEE + '" width="100" height="' + (ANK - KNEE) + '" rx="40"/>' +
+    '<circle cx="180" cy="' + HIP + '" r="9" fill="var(--muted)"/><text x="196" y="' + (HIP + 4) + '">Hip center</text>' +
+    '<circle cx="180" cy="' + ANK + '" r="9" fill="var(--muted)"/><text x="196" y="' + (ANK + 4) + '">Ankle center</text>' +
+    '<g stroke="var(--knee)" stroke-width="2" fill="none"><circle cx="180" cy="' + KNEE + '" r="13"/><line x1="156" y1="' + KNEE + '" x2="204" y2="' + KNEE + '"/><line x1="180" y1="' + (KNEE - 24) + '" x2="180" y2="' + (KNEE + 24) + '"/></g>' +
+    '<text x="214" y="' + (KNEE + 34) + '">Epicondyle</text>' +
+    '<polygon id="tri-t" fill="none" stroke-width="3" stroke-dasharray="7 5"/><polygon id="tri-s" fill="none" stroke-width="3" stroke-dasharray="7 5"/>' +
+    '<g id="markers"></g>';
+  const defs = [['thigh', 0, 'T1', '#E8742B'], ['thigh', 1, 'T2', '#E8742B'], ['thigh', 2, 'T3', '#E8742B'], ['shank', 0, 'S1', '#138A99'], ['shank', 1, 'S2', '#138A99'], ['shank', 2, 'S3', '#138A99'], ['thigh', 3, 'T4', '#E8742B'], ['shank', 3, 'S4', '#138A99'], ['knee', 0, 'K', '#D92B58']];
+  const g = $('#markers');
+  defs.forEach(([seg, i, lab, col], k) => {
+    const n = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    n.setAttribute('class', 'mk'); n.setAttribute('tabindex', '0'); n.setAttribute('role', 'slider'); n.setAttribute('aria-label', 'Marker ' + lab + ', arrow keys move it');
+    n.dataset.seg = seg; n.dataset.i = i; n.style.touchAction = 'none';
+    n.innerHTML = '<circle r="24" fill="transparent"/><circle class="face" r="15" fill="' + col + '" stroke="#fff" stroke-width="2"/><text text-anchor="middle" y="4">' + lab + '</text>';
+    g.append(n);
+  });
+  const lim = { thigh: [CX - 70, CX + 70, HIP + 20, KNEE - 20], shank: [CX - 46, CX + 46, KNEE + 20, ANK - 20], knee: [CX - 100, CX + 100, KNEE - 80, KNEE + 80] };
+  const pos = (seg, i) => seg === 'knee' ? S.mk.knee : S.mk[seg][i];
+  const move = (seg, i, x, y) => { const L = lim[seg], p = pos(seg, i); p.x = clamp(x, L[0], L[1]); p.y = clamp(y, L[2], L[3]); renderMarkers(); };
+  let dragging = null;
+  const toSvg = e => { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
+  g.addEventListener('pointerdown', e => { const n = e.target.closest('.mk'); if (!n) return; dragging = n; n.setPointerCapture(e.pointerId); n.focus(); e.preventDefault(); });
+  g.addEventListener('pointermove', e => { if (!dragging) return; const p = toSvg(e); move(dragging.dataset.seg, +dragging.dataset.i, p.x, p.y); });
+  const up = () => { dragging = null; };
+  g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+  g.addEventListener('keydown', e => {
+    const n = e.target.closest('.mk'); if (!n) return;
+    const d = { ArrowLeft: [-4, 0], ArrowRight: [4, 0], ArrowUp: [0, -4], ArrowDown: [0, 4] }[e.key]; if (!d) return;
+    e.preventDefault(); const p = pos(n.dataset.seg, +n.dataset.i); move(n.dataset.seg, +n.dataset.i, p.x + d[0], p.y + d[1]);
+    const again = $('.mk[data-seg="' + n.dataset.seg + '"][data-i="' + n.dataset.i + '"]'); if (again) again.focus();
+  });
+  $$('[data-p]', root).forEach(b => b.onclick = () => {
+    const P = PRESETS[b.dataset.p];
+    S.mk.thigh = P.thigh.map(([x, y]) => ({ x, y })); S.mk.shank = P.shank.map(([x, y]) => ({ x, y })); renderMarkers();
+  });
+  $$('#mk-n [data-n]').forEach(b => b.onclick = () => { S.mk.n = +b.dataset.n; $$('#mk-n .btn').forEach(x => x.classList.toggle('on', x === b)); renderMarkers(); });
+  $('#mk-palp').oninput = e => { S.mk.palp = +e.target.value; $('#mk-palp-o').textContent = S.mk.palp + ' mm'; renderMarkers(); };
+  $('#mk-rom').oninput = e => { S.mk.rom = +e.target.value; $('#mk-rom-o').textContent = S.mk.rom + '\u00b0'; renderMarkers(); };
+  $('#mk-knee0').onclick = () => { S.mk.knee = { x: 180, y: KNEE }; renderMarkers(); };
+  $('#mk-noise').oninput = e => { S.mk.noise = +e.target.value; $('#mk-noise-o').textContent = S.mk.noise + ' mm'; renderMarkers(); };
+  mkUI = { hist: makePlot($('#mk-hist'), 190), knee: makePlot($('#mk-knee'), 280), kc: makePlot($('#mk-kc'), 320), timer: null };
+}
+function clusterBadge(w) { return w < 6 ? ['Stable', 'ok'] : w < 15 ? ['Marginal', 'warn'] : ['Unreliable', 'fail']; }
+const errTxt = w => w >= 120 ? 'No usable orientation' : '\u00b1' + Math.round(w) + '\u00b0';
+function renderMarkers() {
+  if (!mkUI) return;
+  const T = task(), nM = S.mk.n;
+  const tmAll = S.mk.thigh.map(m => ({ x: m.x - CX, s: m.y - HIP })), smAll = S.mk.shank.map(m => ({ x: m.x - CX, s: m.y - KNEE }));
+  const tm = tmAll.slice(0, nM), sm = smAll.slice(0, nM);
+  const A = clusterAnalysis(tm, 75, S.mk.noise, 300), B = clusterAnalysis(sm, 50, S.mk.noise, 300);
+  const bA = clusterBadge(A.worst), bB = clusterBadge(B.worst);
+  const colr = { ok: css('--ok'), warn: css('--warn'), fail: css('--fail') };
+  $$('#markers .mk').forEach(n => {
+    const p = n.dataset.seg === 'knee' ? S.mk.knee : S.mk[n.dataset.seg][+n.dataset.i];
+    n.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
+    n.setAttribute('aria-valuetext', 'x ' + Math.round(p.x - CX) + ' millimeters, y ' + Math.round(p.y) + ' millimeters');
+    n.style.display = n.dataset.seg !== 'knee' && +n.dataset.i >= nM ? 'none' : '';
+  });
+  $('#tri-t').setAttribute('points', S.mk.thigh.slice(0, nM).map(p => p.x + ',' + p.y).join(' ')); $('#tri-t').setAttribute('stroke', colr[bA[1]]);
+  $('#tri-s').setAttribute('points', S.mk.shank.slice(0, nM).map(p => p.x + ',' + p.y).join(' ')); $('#tri-s').setAttribute('stroke', colr[bB[1]]);
+  const shape = r => r < 0.12 ? 'nearly in a line' : r < 0.35 ? 'narrow' : 'well spread';
+  const card = (name, A, b) => '<div class="card"><h3>' + name + ' <span class="badge ' + b[1] + '">' + b[0] + '</span></h3><div class="big">\u00b1' + Math.round(Math.min(A.p95, 180)) + '\u00b0</div><div class="sub">95% of trials land within this twist about the long axis. Tilt error: \u00b1' + Math.round(A.tiltP95) + '\u00b0.</div><div class="sub">' +
+    (A.n < 3 ? 'Two markers define only a line, so rotation about that line cannot be measured.' : 'Cluster height is ' + Math.round(A.ratio * 100) + '% of its base (' + shape(A.ratio) + ').') + '</div></div>';
+  $('#mk-cards').innerHTML = card('Thigh cluster', A, bA) + card('Shank cluster', B, bB);
+  // histogram
+  const bins = 36, lo = -90, step = 5, hT = new Array(bins).fill(0), hS = new Array(bins).fill(0);
+  const add = (arr, v) => { arr[clamp(Math.floor((v - lo) / step), 0, bins - 1)]++; };
+  A.axial.forEach(v => add(hT, v)); B.axial.forEach(v => add(hS, v));
+  const mx = Math.max(...hT, ...hS, 1), stepX = [], stepT = [], stepS = [];
+  for (let i = 0; i < bins; i++) { stepX.push(lo + i * step, lo + (i + 1) * step); stepT.push(hT[i] / mx * 100, hT[i] / mx * 100); stepS.push(hS[i] / mx * 100, hS[i] / mx * 100); }
+  mkUI.hist.draw({
+    x0: -90, x1: 90, y0: 0, y1: 108, ylabel: 'Share of trials (%)', xlabel: 'Twist error about the long axis (deg)',
+    areas: [{ x: stepX, y1: stepT, y2: stepT.map(() => 0), color: 'rgba(255,154,87,.45)' }, { x: stepX, y1: stepS, y2: stepS.map(() => 0), color: 'rgba(60,203,219,.40)' }],
+    series: [{ x: stepX, y: stepT, color: '#FF9A57', width: 1.5 }, { x: stepX, y: stepS, color: '#3CCBDB', width: 1.5 }]
+  });
+  // knee plot
+  const dt = Math.min(A.p95, 60), ds = Math.min(B.p95, 60);
+  const dx = S.mk.knee.x - CX, dy = KNEE - S.mk.knee.y;
+  const rep = [], lo2 = [], hi2 = [];
+  let peakErr = 0, maxAbd = 0;
+  T.knee.forEach(th => {
+    const r = reportedFlexion(th, dx, dy); rep.push(r); peakErr = Math.max(peakErr, Math.abs(r - th));
+    let mn = Infinity, mxv = -Infinity;
+    for (const a of [-dt, dt]) for (const b of [-ds, ds]) { const k = kneeAnglesWithAxialError(th, a, b).abd; mn = Math.min(mn, k); mxv = Math.max(mxv, k); }
+    lo2.push(mn); hi2.push(mxv); maxAbd = Math.max(maxAbd, Math.abs(mn), Math.abs(mxv));
+  });
+  const ymax = Math.max(maxOf(T.knee), maxOf(rep)) + 10, ymin = Math.min(-15, Math.min(...lo2) - 5, minOf(rep) - 5);
+  mkUI.knee.draw({
+    x0: 0, x1: T.T, y0: ymin, y1: ymax, ylabel: 'Knee angle (deg)',
+    areas: [{ x: T.tk, y1: hi2, y2: lo2, color: 'rgba(255,92,133,.35)' }],
+    series: [
+      { x: T.tk, y: lo2, color: '#FF5C85', width: 1, alpha: .8, label: 'Abduction, low' }, { x: T.tk, y: hi2, color: '#FF5C85', width: 1, alpha: .8, label: 'Abduction, high' },
+      { x: T.tk, y: T.knee, color: COL.truth, width: 2, dash: [6, 4], label: 'True flexion' },
+      { x: T.tk, y: rep, color: '#FFC857', width: 2, label: 'Reported flexion' }]
+  });
+  $('#mk-kleg').innerHTML = legend([{ c: COL.truth, t: 'True flexion', k: 'dash' }, { c: '#FFC857', t: 'Reported flexion (knee marker error)' }, { c: '#FF5C85', t: 'Reported abduction band (true value is 0)' }]);
+  const capped = (A.p95 > 60 || B.p95 > 60) ? ' Twist is capped at 60° in this plot.' : '';
+  const dirx = dx >= 0 ? 'anterior' : 'posterior', diry = dy >= 0 ? 'above' : 'below';
+  $('#mk-note').innerHTML = 'Knee marker is ' + Math.abs(Math.round(dx)) + ' mm ' + dirx + ' and ' + Math.abs(Math.round(dy)) + ' mm ' + diry + ' the epicondyle, which shifts reported flexion by up to <strong>' + f1(peakErr) + '°</strong>. ' +
+    'Segment twist of ±' + Math.round(dt) + '° (thigh) and ±' + Math.round(ds) + '° (shank) lets a knee that only flexes appear to abduct by up to <strong>' + f1(maxAbd) + '°</strong>.' + capped;
+  clearTimeout(mkUI.timer); mkUI.timer = setTimeout(renderMarkersHeavy, 140);
+}
+function renderMarkersHeavy() {
+  const T = task();
+  // marker count comparison
+  const tmAll = S.mk.thigh.map(m => ({ x: m.x - CX, s: m.y - HIP })), smAll = S.mk.shank.map(m => ({ x: m.x - CX, s: m.y - KNEE }));
+  const rows = [2, 3, 4].map(n => {
+    const a = clusterAnalysis(tmAll.slice(0, n), 75, S.mk.noise, 100), b = clusterAnalysis(smAll.slice(0, n), 50, S.mk.noise, 100);
+    const la = lossAnalysis(tmAll.slice(0, n), 75, S.mk.noise, 100), lb = lossAnalysis(smAll.slice(0, n), 50, S.mk.noise, 100);
+    return { n, a: a.worst, b: b.worst, l: Math.max(la.worst, lb.worst) };
+  });
+  const cell = w => { const bd = clusterBadge(w); return '<span class="badge ' + bd[1] + '">' + errTxt(w) + '</span>'; };
+  $('#mk-ntab').innerHTML = '<tr><th>Markers per segment</th><th>Thigh orientation error (95%)</th><th>Shank orientation error (95%)</th><th>After losing one marker</th></tr>' +
+    rows.map(r => '<tr' + (r.n === S.mk.n ? ' style="background:var(--panel-2)"' : '') + '><td><b>' + r.n + '</b></td><td>' + cell(r.a) + '</td><td>' + cell(r.b) + '</td><td>' + cell(r.l) + '</td></tr>').join('');
+  const r3 = rows[1], r4 = rows[2];
+  $('#mk-nnote').innerHTML = 'Two markers give a line: they fix where the segment is and which way it points, but not how it is rotated about that line. Three markers that are not in a line fix the full orientation. A fourth adds ' +
+    (r4.a < r3.a - 0.2 || r4.b < r3.b - 0.2 ? 'a little noise averaging (' + errTxt(r3.a) + ' to ' + errTxt(r4.a) + ' on the thigh) and, more usefully, ' : '') + 'a spare: lose one marker and the segment can still be tracked, <strong>if the remaining three are not in a line</strong>. Check that with the presets above.';
+  // knee center study
+  const st = kneeCenterStudy(T.knee, S.mk.palp, S.mk.noise, S.mk.rom, 150);
+  const cols = ['#FF9A57', '#6EA8FF', '#7BE495'], names = ['One lateral marker plus an offset', 'Medial and lateral epicondyle markers', 'Functional (movement-based)'];
+  const lim = Math.max(15, Math.ceil(3 * Math.max(...st.map(s => s.sigma)) / 5) * 5);
+  const dx = S.mk.knee.x - CX, dy = KNEE - S.mk.knee.y;
+  const series = st.map((s, i) => ({ x: s.pts.map(p => p[0]), y: s.pts.map(p => p[1]), color: cols[i], dots: 3, alpha: .6 }));
+  series.push({ x: [-lim, lim], y: [0, 0], color: '#E8EEF7', width: 1, alpha: .35 }, { x: [0, 0], y: [-lim, lim], color: '#E8EEF7', width: 1, alpha: .35 });
+  series.push({ x: [dx], y: [dy], color: '#FF5C85', dots: 7 });
+  mkUI.kc.draw({ x0: -lim, x1: lim, y0: -lim, y1: lim, ylabel: 'Superior (+) / inferior (\u2212) error (mm)', xlabel: 'Anterior (+) / posterior (\u2212) error (mm)', series });
+  $('#mk-kcleg').innerHTML = legend(names.map((n, i) => ({ c: cols[i], t: n, k: 'dot' })).concat([{ c: '#FF5C85', t: 'Your knee marker', k: 'dot' }]));
+  const weak = ['Every millimeter of palpation error goes straight into the center. Needs the knee width.', 'Averages two palpations, but assumes the axis sits midway between the epicondyles. The medial marker is often removed after the static trial.', 'No palpation, but error grows when the range of motion is small or soft tissue moves. Assumes the knee is a fixed hinge.'];
+  $('#mk-kctab').innerHTML = '<tr><th>Method</th><th>Weak spot</th><th class="num">Center miss (95%)</th><th class="num">Flexion error (95%)</th></tr>' +
+    st.map((s, i) => '<tr><td><span class="sw" style="background:' + cols[i] + '"></span> <b style="font-weight:600">' + names[i] + '</b></td><td style="max-width:340px">' + weak[i] + '</td><td class="num">' + f1(s.rad95) + ' mm</td><td class="num">' + f1(s.flex95) + '\u00b0</td></tr>').join('');
+  $('#mk-kcnote').innerHTML = 'Simplified model for teaching: errors are random and equal in both directions, averaging two palpations lowers the error by about 30%, and the functional error is the marker noise divided by sin(range of motion \u00f7 2), with a 2 mm floor. Real functional methods can also be biased when the knee is not a perfect hinge.';
+}
+
+/* ================================================================== 2. GAPS */
+let gpUI = null;
+function setDefaultGaps() { const T = task(); S.gap.gaps = [{ c: T.defaultGapT, len: 15 }]; S.gap.active = 0; }
+function initGaps() {
+  const root = $('#tab-gaps');
+  root.innerHTML =
+    '<div class="grid-main"><aside class="rail"><div class="group"><h2>Fill gaps and compare splines</h2><p class="lead">Hide part of a noisy knee-angle trace, fill it with each method, and compare with what the knee really did.</p></div>' +
+    '<div class="group"><h3>Gaps</h3><div class="btns" id="gp-chips"></div><div class="btns"><button class="btn" id="gp-add">Add gap</button><button class="btn" id="gp-del">Remove gap</button><button class="btn" id="gp-pre">Short, medium, long</button></div>' +
+    '<div id="gp-sl"></div><p class="lead">You can also click or drag on the plot to move the selected gap.</p></div>' +
+    '<div class="group"><h3>Methods</h3><div id="gp-methods"></div></div>' +
+    '<div class="group"><h3>Settings</h3><div id="gp-set"></div></div></aside>' +
+    '<div class="stack"><div class="panel"><h3 id="gp-title"></h3><div id="gp-plot"></div><div id="gp-leg"></div></div>' +
+    '<div class="panel"><h3>How far each method misses inside the gaps</h3><div class="scroll"><table class="m" id="gp-table"></table></div><div class="note" id="gp-note"></div></div>' +
+    '<div class="panel"><h3>How each method works</h3><div id="gp-how"></div></div>' +
+    '<details><summary>How to choose a method</summary><p>Linear is safe for very short gaps on smooth parts of the movement and flattens any peak it crosses. Cubic splines follow curvature but can overshoot when the context window is small or noisy. PCHIP never overshoots, so it also never reaches a true peak. Akima sits between them. A smoothing spline fits across the gap and also smooths the data you measured, so it changes every sample. For long gaps over a turning point, no single-marker method is trustworthy: fill from another marker, or drop the trial.</p></details></div></div>';
+  $('#gp-how').innerHTML = METHODS.map(m => '<div class="how"><h4><span class="sw" style="background:' + m.color + '"></span>' + m.name + '</h4><p>' + m.how + '</p></div>').join('');
+  gpUI = { plot: makePlot($('#gp-plot'), 380) };
+  gpUI.plot.onPick = t => { const g = S.gap.gaps[S.gap.active]; if (!g) return; g.c = clamp(Math.round(t * 100) / 100, 0, task().T); renderGaps(true); };
+  $('#gp-add').onclick = () => { if (S.gap.gaps.length >= 4) return; const T = task(); S.gap.gaps.push({ c: clamp(0.15 * T.T + 0.2 * T.T * S.gap.gaps.length, 0, T.T), len: 10 }); S.gap.active = S.gap.gaps.length - 1; buildGapControls(); renderGaps(); };
+  $('#gp-del').onclick = () => { if (S.gap.gaps.length <= 1) return; S.gap.gaps.splice(S.gap.active, 1); S.gap.active = 0; buildGapControls(); renderGaps(); };
+  $('#gp-pre').onclick = () => { S.gap.gaps = task().gapPresets.map(([c, len]) => ({ c, len })); S.gap.active = 0; buildGapControls(); renderGaps(); };
+  $('#gp-methods').innerHTML = METHODS.map(m => '<label class="chk"><input type="checkbox" data-m="' + m.id + '" ' + (S.gap.on[m.id] ? 'checked' : '') + '><span class="sw" style="background:' + m.color + '"></span><span><b style="font-weight:600">' + m.name + '</b><br><span style="color:var(--muted);font-size:13px">' + m.note + '</span></span></label>').join('');
+  $$('#gp-methods input').forEach(c => c.onchange = () => { S.gap.on[c.dataset.m] = c.checked; renderGaps(); });
+  $('#gp-set').innerHTML =
+    slider('gp-K', 'Context points per side (cubic, PCHIP, Akima)', 2, 14, 1, S.gap.K, v => v) +
+    slider('gp-lam', 'Smoothing strength (log scale)', 0, 4, 0.1, Math.log10(S.gap.lambda), v => Math.round(Math.pow(10, v))) +
+    slider('gp-sig', 'Measurement noise', 0, 2, 0.1, S.gap.sigma, v => (+v).toFixed(1) + '\u00b0') +
+    '<label class="chk"><input type="checkbox" id="gp-post"> <span>Then low-pass filter (zero-lag Butterworth)</span></label>' +
+    slider('gp-fc', 'Cutoff', 2, 20, 1, S.gap.fc, v => v + ' Hz') +
+    '<label class="chk"><input type="checkbox" id="gp-truth" checked> <span>Show the true movement</span></label>';
+  const bind = (id, fn) => { $('#' + id).oninput = e => { fn(+e.target.value); renderGaps(); }; };
+  bind('gp-K', v => { S.gap.K = v; $('#gp-K-o').textContent = v; });
+  bind('gp-lam', v => { S.gap.lambda = Math.pow(10, v); $('#gp-lam-o').textContent = Math.round(S.gap.lambda); });
+  bind('gp-sig', v => { S.gap.sigma = v; $('#gp-sig-o').textContent = v.toFixed(1) + '\u00b0'; });
+  bind('gp-fc', v => { S.gap.fc = v; $('#gp-fc-o').textContent = v + ' Hz'; });
+  $('#gp-post').onchange = e => { S.gap.post = e.target.checked; renderGaps(); };
+  $('#gp-truth').onchange = e => { S.gap.truth = e.target.checked; renderGaps(); };
+  setDefaultGaps(); buildGapControls();
+}
+function buildGapControls() {
+  const T = task();
+  $('#gp-chips').innerHTML = S.gap.gaps.map((g, i) => '<button class="btn ' + (i === S.gap.active ? 'on' : '') + '" data-g="' + i + '">Gap ' + (i + 1) + '</button>').join('');
+  $$('#gp-chips [data-g]').forEach(b => b.onclick = () => { S.gap.active = +b.dataset.g; buildGapControls(); renderGaps(); });
+  const g = S.gap.gaps[S.gap.active];
+  $('#gp-sl').innerHTML =
+    slider('gp-len', 'Length', 1, 80, 1, g.len, v => v + ' frames, ' + v * 10 + ' ms') +
+    slider('gp-pos', 'Center', 0, T.T, 0.01, g.c, v => (+v).toFixed(2) + ' s');
+  $('#gp-len').oninput = e => { g.len = +e.target.value; $('#gp-len-o').textContent = g.len + ' frames, ' + g.len * 10 + ' ms'; renderGaps(); };
+  $('#gp-pos').oninput = e => { g.c = +e.target.value; $('#gp-pos-o').textContent = g.c.toFixed(2) + ' s'; renderGaps(true); };
+  $('#gp-add').disabled = S.gap.gaps.length >= 4; $('#gp-del').disabled = S.gap.gaps.length <= 1;
+}
+function renderGaps(syncPos) {
+  if (!gpUI) return;
+  const T = task(), n = T.nK;
+  if (syncPos) { const g = S.gap.gaps[S.gap.active]; const p = $('#gp-pos'); if (p && g) { p.value = g.c; $('#gp-pos-o').textContent = g.c.toFixed(2) + ' s'; } }
+  const truth = T.knee, meas = noisySignal(truth, S.gap.sigma, 11), mask = gapMask(n, S.gap.gaps, T.fsK);
+  const runs = gapRuns(mask), missing = mask.filter(Boolean).length;
+  const series = [];
+  if (S.gap.truth) series.push({ x: T.tk, y: truth, color: COL.truth, width: 2, dash: [6, 4], label: 'Truth' });
+  const vx = [], vy = []; for (let i = 0; i < n; i++) if (!mask[i]) { vx.push(T.tk[i]); vy.push(meas[i]); }
+  series.push({ x: vx, y: vy, color: COL.meas, dots: 2.2, alpha: .85 });
+  const rows = [];
+  for (const m of METHODS) {
+    if (!S.gap.on[m.id]) continue;
+    let f = fillGaps(meas, mask, m.id, { K: S.gap.K, lambda: S.gap.lambda });
+    if (S.gap.post) f = butterLP(f, S.gap.fc, T.fsK);
+    const hi = runs.map(([s, e]) => [Math.max(0, s - 1), Math.min(n - 1, e + 1)]);
+    series.push({ x: T.tk, y: f, color: m.color, width: 1.6, alpha: .5, hi, label: m.name });
+    rows.push({ m, met: gapMetrics(truth, f, mask) });
+  }
+  const bands = runs.map(([s, e]) => ({ x0: (s - .5) / T.fsK, x1: (e + .5) / T.fsK }));
+  const ymin = Math.floor(minOf(truth) - 12), ymax = Math.ceil(maxOf(truth) + 14);
+  $('#gp-title').textContent = T.label + ': knee flexion with ' + missing + ' missing frames (' + missing * 10 + ' ms, ' + Math.round(missing / n * 100) + '% of the trial)';
+  gpUI.plot.draw({ x0: 0, x1: T.T, y0: ymin, y1: ymax, ylabel: 'Knee flexion (deg)', series, bands });
+  $('#gp-leg').innerHTML = legend([{ c: COL.truth, t: 'Truth', k: 'dash' }, { c: COL.meas, t: 'Measured, with noise', k: 'dot' }]) + '<p class="cap">Shaded bands mark the gaps. The bright segment of each colored line is the fill.</p>';
+  const maxR = Math.max(0.01, ...rows.map(r => r.met.rmse));
+  $('#gp-table').innerHTML = '<tr><th>Method</th><th class="num">RMSE (deg)</th><th></th><th class="num">Largest miss (deg)</th><th class="num">Peak error (deg)</th></tr>' +
+    (rows.length ? rows.map(r => '<tr><td><span class="sw" style="background:' + r.m.color + '"></span> ' + r.m.name + '</td><td class="num">' + f1(r.met.rmse) + '</td><td><div class="bar"><i style="width:' + (r.met.rmse / maxR * 100) + '%;background:' + r.m.color + '"></i></div></td><td class="num">' + f1(r.met.max) + '</td><td class="num">' + (r.met.peak == null ? '\u2014' : (r.met.peak > 0 ? '+' : '') + f1(r.met.peak)) + '</td></tr>').join('') : '<tr><td colspan="5">Select at least one method.</td></tr>');
+  let msg = '';
+  if (rows.length) {
+    const best = rows.reduce((a, b) => b.met.rmse < a.met.rmse ? b : a), worst = rows.reduce((a, b) => b.met.rmse > a.met.rmse ? b : a);
+    msg = '<strong>' + best.m.name + '</strong> misses least here (RMSE ' + f1(best.met.rmse) + '°)';
+    msg += rows.length > 1 ? ', and <strong>' + worst.m.name + '</strong> misses most (' + f1(worst.met.rmse) + '°). ' : '. ';
+    const pk = rows.filter(r => r.met.peak != null);
+    if (pk.length) { const w = pk.reduce((a, b) => Math.abs(b.met.peak) > Math.abs(a.met.peak) ? b : a); msg += 'A gap covers the peak, and ' + w.m.name + ' ' + (w.met.peak < 0 ? 'cuts it by ' : 'overshoots it by ') + f1(Math.abs(w.met.peak)) + '°. '; }
+    const longest = Math.max(0, ...runs.map(([s, e]) => e - s + 1));
+    if (longest > 15) msg += 'The longest gap is ' + longest * 10 + ' ms, which is long enough that most labs would not fill it from one marker.';
+  } else msg = 'Pick a method to see how it performs.';
+  $('#gp-note').innerHTML = msg;
+}
+
+/* ================================================================== 3. QUALITY */
+const SCEN = {
+  good: { t: 'Well collected', kin: {}, frc: {} },
+  skin: { t: 'Skin moves over bone', kin: { sta: .8, offset: .3 }, frc: {} },
+  zero: { t: 'Plate not zeroed', kin: {}, frc: { zero: .7 } },
+  noisy: { t: 'Noisy lab', kin: { noise: .7 }, frc: { hum: .7 } },
+  impact: { t: 'Hard impacts', kin: { sta: .5 }, frc: { ring: .8 } },
+  all: { t: 'Everything wrong', kin: { sta: .7, spike: .6, offset: .6, noise: .6, over: .5 }, frc: { zero: .6, hum: .6, ring: .6, clip: .6 } }
+};
+let qUI = null;
+function probRow(group, key, label, v) {
+  const p = S.q[group][key];
+  return '<div class="prob"><label class="chk"><input type="checkbox" data-g="' + group + '" data-k="' + key + '" ' + (p.on ? 'checked' : '') + '><span>' + label + '</span></label><span class="v" id="pv-' + key + '">' + p.v.toFixed(1) + '</span>' +
+    '<input type="range" min="0.1" max="1" step="0.1" value="' + p.v + '" data-g="' + group + '" data-k="' + key + '" aria-label="' + label + ' severity" ' + (p.on ? '' : 'disabled') + '></div>';
+}
+function initQuality() {
+  const root = $('#tab-quality');
+  root.innerHTML =
+    '<div class="grid-main"><aside class="rail"><div class="group"><h2>Spot problems in the data</h2><p class="lead">Switch on a problem and judge what it does to the curves and to the numbers you would report. Teal is the well-collected reference.</p></div>' +
+    '<div class="group"><h3>Scenarios</h3><div class="btns" id="q-scen"></div></div>' +
+    '<div class="group"><h3>Kinematics</h3><div id="q-kin"></div></div><div class="group"><h3>Kinetics</h3><div id="q-frc"></div></div>' +
+    '<label class="chk"><input type="checkbox" id="q-clean" checked> <span>Show the well-collected reference</span></label></aside>' +
+    '<div class="stack"><div class="panel"><h3 id="q-title"></h3><div id="q-p1"></div><div id="q-p2"></div><div id="q-p3"></div><div id="q-leg"></div></div>' +
+    '<div class="panel"><div id="q-verdict"></div><div class="checks" id="q-checks"></div></div></div></div>';
+  $('#q-scen').innerHTML = Object.entries(SCEN).map(([k, s]) => '<button class="btn" data-s="' + k + '">' + s.t + '</button>').join('');
+  $$('#q-scen [data-s]').forEach(b => b.onclick = () => {
+    const sc = SCEN[b.dataset.s];
+    for (const g of ['kin', 'frc']) for (const k in S.q[g]) { const v = sc[g][k]; S.q[g][k].on = v != null; if (v != null) S.q[g][k].v = v; }
+    buildProblemRows(); renderQuality();
+  });
+  $('#q-clean').onchange = e => { S.q.clean = e.target.checked; renderQuality(); };
+  buildProblemRows();
+  qUI = { p1: makePlot($('#q-p1'), 230), p2: makePlot($('#q-p2'), 200), p3: makePlot($('#q-p3'), 250) };
+}
+function buildProblemRows() {
+  $('#q-kin').innerHTML = Object.entries(KIN_PROBLEMS).map(([k, l]) => probRow('kin', k, l)).join('');
+  $('#q-frc').innerHTML = Object.entries(FOR_PROBLEMS).map(([k, l]) => probRow('frc', k, l)).join('');
+  $$('#tab-quality input[data-g]').forEach(i => {
+    if (i.type === 'checkbox') i.onchange = () => { S.q[i.dataset.g][i.dataset.k].on = i.checked; const r = $('input[type=range][data-k="' + i.dataset.k + '"]'); r.disabled = !i.checked; renderQuality(); };
+    else i.oninput = () => { S.q[i.dataset.g][i.dataset.k].v = +i.value; $('#pv-' + i.dataset.k).textContent = (+i.value).toFixed(1); renderQuality(); };
+  });
+}
+function renderQuality() {
+  if (!qUI) return;
+  const T = task();
+  const kin = kinSignal(T, S.q.kin), frc = forceSignal(T, S.q.frc);
+  const vC = derivative(kin.clean, T.fsK), vP = derivative(kin.proc, T.fsK);
+  const anyKin = Object.values(S.q.kin).some(p => p.on);
+  const S1 = [], S2 = [], S3 = [];
+  if (S.q.clean) { S1.push({ x: T.tk, y: kin.clean, color: COL.truth, width: 2, label: 'Reference' }); S2.push({ x: T.tk, y: vC, color: COL.truth, width: 2, label: 'Reference' }); S3.push({ x: T.tf, y: frc.clean.map(v => v / BWN), color: COL.truth, width: 1.6, label: 'Reference', fmt: v => v.toFixed(2) + ' BW' }); }
+  if (anyKin) S1.push({ x: T.tk, y: kin.raw, color: COL.raw, width: 1, alpha: .5, label: 'Unfiltered' });
+  S1.push({ x: T.tk, y: kin.proc, color: COL.prob, width: 2, label: 'Your trial' });
+  S2.push({ x: T.tk, y: vP, color: COL.prob, width: 2, label: 'Your trial', fmt: v => Math.round(v) + ' deg/s' });
+  S3.push({ x: T.tf, y: frc.proc.map(v => v / BWN), color: COL.prob, width: 1.4, label: 'Your trial', fmt: v => v.toFixed(2) + ' BW' });
+  const kmax = Math.max(maxOf(T.knee), maxOf(kin.raw)) + 8, kmin = Math.min(-8, minOf(kin.raw) - 4, minOf(kin.proc) - 4);
+  const vmx = Math.max(500, maxAbs(vP) * 1.1, maxAbs(vC) * 1.1);
+  const fmax = Math.max(maxOf(frc.proc), maxOf(frc.clean)) / BWN, fmin = Math.min(-0.15, minOf(frc.proc) / BWN - .05);
+  $('#q-title').textContent = T.label + ': knee kinematics and vertical force';
+  qUI.p1.draw({ x0: 0, x1: T.T, y0: kmin, y1: kmax, ylabel: 'Knee flexion (deg)', series: S1 });
+  qUI.p2.draw({ x0: 0, x1: T.T, y0: -vmx, y1: vmx, ylabel: 'Knee angular velocity (deg/s)', series: S2 });
+  qUI.p3.draw({ x0: 0, x1: T.T, y0: fmin, y1: Math.ceil(fmax * 4 + 1) / 4, ylabel: 'Vertical ground reaction force (body weight)', series: S3 });
+  $('#q-leg').innerHTML = legend([{ c: COL.truth, t: 'Well-collected reference' }, { c: COL.prob, t: 'Your trial' }, { c: COL.raw, t: 'Unfiltered kinematics', k: 'dash' }]);
+  const Q = qualityChecks(T, kin, frc);
+  const V = { ok: ['Usable as collected', 'Every check is inside its expected range.'], warn: ['Check before using', 'At least one check is outside its expected range. Find the cause before reporting.'], fail: ['Do not use as collected', 'At least one check failed. Fix the cause and recollect, or reprocess with care.'] }[Q.worst];
+  $('#q-verdict').innerHTML = '<div class="verdict ' + Q.worst + '"><strong>' + V[0] + '</strong><span>' + V[1] + '</span></div>';
+  $('#q-checks').innerHTML = Q.checks.map(c => '<div class="chk-row"><span class="dotc ' + c.s + '" role="img" aria-label="' + c.s + '"></span><span>' + c.label + '</span><span class="val">' + c.value + '</span><span class="ref">' + c.ref + '</span>' + (c.s !== 'ok' ? '<span class="tp">' + c.tip + '</span>' : '') + '</div>').join('');
+}
+
+/* ================================================================== shell */
+function renderAll() {
+  if (S.tab === 'markers') renderMarkers();
+  else if (S.tab === 'gaps') renderGaps();
+  else renderQuality();
+}
+function setTab(t) {
+  S.tab = t;
+  $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.t === t));
+  $$('.tabpanel').forEach(p => p.hidden = p.id !== 'tab-' + t);
+  renderAll();
+}
+function setTask(k) {
+  S.task = k;
+  $$('.seg button').forEach(b => b.setAttribute('aria-checked', b.dataset.k === k));
+  setDefaultGaps(); buildGapControls();
+  renderAll();
+}
+function boot() {
+  initMarkers(); initGaps(); initQuality();
+  $$('.tabs button').forEach(b => b.onclick = () => setTab(b.dataset.t));
+  $$('.seg button').forEach(b => b.onclick = () => setTask(b.dataset.k));
+  setTab('markers');
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
+}
+document.fonts && document.fonts.ready ? document.fonts.ready.then(boot) : boot();
+
+</script>
+</body>
+</html>
