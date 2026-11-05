@@ -1,0 +1,5 @@
+record,participant_id,group,injured_or_nondom_limb,limb_tested,body_mass_kg,trial
+1,1,ACLR,L,L,72.4,1
+2,1,ACLR,L,R,72.4,1
+3,2,Healthy,R,R,65,1
+4,2,Healthy,R,L,65,1
