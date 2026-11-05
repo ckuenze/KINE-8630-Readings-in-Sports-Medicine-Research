@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Physical Activity Dashboard: ActiGraph Epoch Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#1E2761; --navy-soft:#273575; --ice:#CADCFC; --amber:#E8AA42; --slate:#44546A;
+    --bg:#FAFBFF; --white:#FFFFFF; --red:#C1443C; --red-bg:#FDEDEC; --green:#1C9C6E; --green-bg:#EAF8F2;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:Calibri,'Segoe UI',Helvetica,Arial,sans-serif; background:var(--bg); color:var(--navy); }
+  header{ background:var(--navy); color:var(--white); padding:20px 26px 18px; }
+  header h1{ font-family:Cambria,Georgia,'Times New Roman',serif; margin:0 0 4px; font-size:23px; }
+  header p{ margin:0; color:var(--ice); font-size:13.5px; max-width:950px; line-height:1.4; }
+  .settings-bar{ display:flex; gap:22px; flex-wrap:wrap; align-items:flex-end; padding:16px 22px; background:var(--white); border-bottom:1px solid var(--ice); }
+  .setting{ display:flex; flex-direction:column; gap:3px; }
+  .setting label{ font-size:11px; color:var(--slate); text-transform:uppercase; letter-spacing:0.3px; font-weight:700; }
+  .setting input{ width:90px; padding:6px 8px; border:1px solid var(--ice); border-radius:6px; font-size:13.5px; }
+  .filebtn{ display:inline-block; padding:9px 16px; border-radius:7px; border:1px solid var(--navy);
+    background:var(--navy); color:#fff; font-weight:700; font-size:12.5px; cursor:pointer; align-self:flex-end; }
+  .filebtn:hover{ background:var(--navy-soft); }
+  .methodnote{ font-size:11px; color:#9aa4bd; max-width:260px; align-self:flex-end; }
+  #cardsWrap{ padding:18px 22px; display:flex; flex-direction:column; gap:18px; }
+  .pcard{ background:var(--white); border:1px solid var(--ice); border-radius:10px; padding:16px 18px; }
+  .pcard-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .pcard-head input[type=text]{ font-weight:700; font-size:15px; border:1px solid transparent; border-radius:5px; padding:4px 6px; color:var(--navy); flex:1; }
+  .pcard-head input[type=text]:hover, .pcard-head input[type=text]:focus{ border-color:var(--ice); background:var(--bg); }
+  .removebtn{ border:none; background:none; color:var(--red); font-size:16px; cursor:pointer; font-weight:700; padding:2px 6px; }
+  .validity-banner{ padding:9px 12px; border-radius:7px; font-size:13px; margin-bottom:12px; }
+  .validity-ok{ background:var(--green-bg); color:var(--navy); border:1px solid var(--green); }
+  .validity-bad{ background:var(--red-bg); color:var(--navy); border:1px solid var(--red); }
+  table{ width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:14px; }
+  th{ text-align:left; color:var(--slate); font-size:10.5px; text-transform:uppercase; letter-spacing:0.3px; padding:6px 7px; border-bottom:2px solid var(--ice); white-space:nowrap; }
+  th.num, td.num{ text-align:right; }
+  td{ padding:6px 7px; border-bottom:1px solid #EEF2FC; }
+  tr.day-invalid td{ color:#b8bfd1; }
+  tr.day-invalid td.datecell{ text-decoration:line-through; }
+  .toggle-row{ display:flex; gap:6px; margin-bottom:10px; }
+  .toggle-btn{ padding:5px 12px; border-radius:6px; border:1px solid var(--ice); background:var(--bg); color:var(--navy); font-size:11.5px; font-weight:700; cursor:pointer; }
+  .toggle-btn.active{ background:var(--navy); color:#fff; border-color:var(--navy); }
+  h3.sectiontitle{ font-size:12px; text-transform:uppercase; letter-spacing:0.4px; color:var(--amber); margin:14px 0 8px; font-weight:700; }
+  .empty-msg{ padding:40px; text-align:center; color:#9aa4bd; font-size:14px; }
+  .foot{ padding:0 22px 22px; font-size:11px; color:#9aa4bd; max-width:1000px; }
+  .methodname{ font-weight:700; color:var(--navy); }
+  .info-row{ padding:9px 0; border-bottom:1px solid #EEF2FC; }
+  .info-row:last-of-type{ border-bottom:none; }
+  .info-row-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .info-row-head .summary-text{ flex:1; min-width:220px; font-size:13px; }
+  .learnmore-btn{ flex-shrink:0; padding:4px 11px; border-radius:6px; border:1px solid var(--navy);
+    background:var(--white); color:var(--navy); font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .learnmore-btn:hover{ background:var(--navy); color:#fff; }
+  .info-detail{ display:none; font-size:12.5px; color:var(--slate); margin-top:8px; line-height:1.5; }
+  .timeline-controls{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:10px; }
+  .daynav{ display:flex; align-items:center; gap:8px; }
+  .daynav button{ padding:5px 10px; border-radius:6px; border:1px solid var(--ice); background:var(--bg); color:var(--navy); font-size:12px; font-weight:700; cursor:pointer; }
+  .daynav button:disabled{ opacity:0.4; cursor:default; }
+  .daynav .daylabel{ font-size:13px; font-weight:700; min-width:150px; text-align:center; }
+  .cutpoint-select{ padding:6px 9px; border:1px solid var(--ice); border-radius:6px; font-size:12.5px; }
+  .legend-row{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; font-size:11px; color:var(--slate); }
+  .legend-chip{ display:inline-flex; align-items:center; gap:4px; }
+  .legend-swatch{ width:12px; height:12px; border-radius:3px; display:inline-block; }
+  .chart-block{ margin-bottom:16px; }
+  .chart-block h4{ font-size:11px; text-transform:uppercase; letter-spacing:0.3px; color:var(--slate); margin:0 0 4px; font-weight:700; }
+  .chart-canvas-wrap{ height:140px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Physical Activity Dashboard: ActiGraph Epoch Analysis</h1>
+  <p>Upload one or more ActiGraph 60-second epoch export files. Each file is wear-time validated using the Choi (2011) algorithm, then classified into activity intensities using four common cutpoint sets, restricted to valid days by your own thresholds below.</p>
+</header>
+
+<div class="settings-bar">
+  <div class="setting">
+    <label>Min. hours/day for a valid day</label>
+    <input type="number" id="setValidHours" value="10" step="0.5" min="0">
+  </div>
+  <div class="setting">
+    <label>Min. valid days required</label>
+    <input type="number" id="setMinDays" value="4" step="1" min="1">
+  </div>
+  <div class="setting">
+    <label>Min. valid weekend days required</label>
+    <input type="number" id="setMinWeekendDays" value="1" step="1" min="0">
+  </div>
+  <label class="filebtn" for="fileInput">Add File(s)</label>
+  <input type="file" id="fileInput" accept=".csv" multiple style="display:none;">
+  <span class="methodnote">Wear-time validation: Choi et al. (2011) &mdash; 90 min of consecutive zero counts, with up to 2 min of non-zero counts tolerated if flanked by 30+ min of zero counts on each side. Applied to Axis 1 counts. Gaps in the file (missing epochs) are filled with zero-count placeholders and always treated as non-wear, so they both bridge adjacent zero-count stretches for Choi detection and appear explicitly as device-off time in each day's breakdown below.</span>
+</div>
+
+<div id="cardsWrap"></div>
+<div class="empty-msg" id="emptyMsg">No files loaded yet. Click "Add File(s)" to begin.</div>
+
+<div class="summary-card" style="margin:0 22px 18px;">
+  <h2 style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--amber); margin:0 0 12px; font-weight:700;">What Is a "Count"? What Is a "Step"? How ActiGraph Actually Generates These Numbers</h2>
+  <p style="font-size:13px; margin:0 0 12px;">Every metric on this dashboard is built on top of two numbers the device hands you already processed: <b>counts</b> (the basis for Freedson, Freedson VM3, Troiano, and Evenson) and <b>steps</b> (the basis for the cadence metrics). Neither is a direct reading of acceleration &mdash; both come from a multi-step signal-processing pipeline inside the device and ActiLife software, most of which was undisclosed for decades.</p>
+
+  <div class="info-row">
+    <div class="info-row-head">
+      <span class="summary-text"><b>Counts</b> &mdash; band-pass filtered, thresholded, and summed acceleration. The full algorithm was proprietary for most of this field's history.</span>
+      <button class="learnmore-btn" data-target="detail-counts">Learn more</button>
+    </div>
+    <div class="info-detail" id="detail-counts">Raw tri-axial acceleration (in g) is first passed through a band-pass filter designed to isolate frequencies typical of human movement, rejecting both slow drift (gravity, posture, device shifting) and very high-frequency vibration. The exact passband has varied by device generation &mdash; the original AM7164 used 0.21&ndash;2.28 Hz; the GT3X/GT3X+/wGT3X-BT family commonly cites 0.25&ndash;2.50 Hz; ActiGraph's own 2022 technical disclosure gives the modern digital filter's peak gain at 0.759 Hz with &minus;6 dB points at 0.212 and 2.148 Hz. The filtered signal is then rectified and thresholded &mdash; the original device counted each full 1/128th-of-range deflection above its 8-bit midpoint as one count; modern devices apply a comparable small-amplitude "dead-band" (on the order of 0.068 g) below which movement isn't counted at all &mdash; then summed over the recording epoch (commonly 1 s internally, re-aggregated to whatever epoch length you choose, 60 s here) to produce the final "counts" value. For most of the time these devices have existed, the complete algorithm was proprietary and known only through independent reverse-engineering; ActiGraph itself published the full technical details and an open-source reference implementation for the first time only in 2022 (Neishabouri et al.).</div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-row-head">
+      <span class="summary-text"><b>Steps</b> &mdash; a separate peak-detection algorithm tuned to footstep timing, with real accuracy problems at slow walking speeds.</span>
+      <button class="learnmore-btn" data-target="detail-steps">Learn more</button>
+    </div>
+    <div class="info-detail" id="detail-steps">Steps come from a separate algorithm, not a byproduct of counts. It starts from the same band-pass filtered signal but looks for peaks matching the amplitude and timing pattern of a footstep on a single axis, rather than summing overall magnitude. Independent testing with controlled sinusoidal signals found the ActiLife step-detection algorithm is most sensitive to movement around 0.7&ndash;0.8 Hz and requires a minimum acceleration amplitude of roughly 0.07 g to register a step &mdash; broadly similar to, but not identical to, the counts algorithm's own threshold, since the two are tuned for different purposes. This has real, documented accuracy consequences: step detection is known to under-count substantially at slow walking speeds (well under 50% agreement with observed steps at speeds at or below ~1.0 m/s in some validation studies, improving sharply above that), and accuracy depends on wear location (hip tends to be more reliable than wrist, where incidental arm movement creates false positives and negatives). ActiGraph offers an optional "Low Frequency Extension" filter specifically to improve sensitivity at slow speeds, at some cost to specificity.</div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-row-head">
+      <span class="summary-text"><b>The "plateau effect"</b> &mdash; counts can level off or even drop at the highest activity intensities.</span>
+      <button class="learnmore-btn" data-target="detail-plateau">Learn more</button>
+    </div>
+    <div class="info-detail" id="detail-plateau">Because the band-pass filter's upper cutoff rejects the higher movement frequencies that occur during fast running, counts can level off or even decrease at the highest activity intensities &mdash; meaning counts-based cutpoints may be least reliable exactly where distinguishing vigorous from very-vigorous activity matters most.</div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-row-head">
+      <span class="summary-text"><b>Counts depend on raw sampling rate</b>, not just the activity itself &mdash; the same aliasing issue from earlier this semester.</span>
+      <button class="learnmore-btn" data-target="detail-aliasing">Learn more</button>
+    </div>
+    <div class="info-detail" id="detail-aliasing">Controlled testing has shown the same physical movement recorded at different raw sampling rates can produce meaningfully different final count values (hundreds to over a thousand counts/min difference between 30 Hz and 100 Hz during running), due to imperfect anti-aliasing in the resampling step. The same movement, same device, different sampling rate: different counts.</div>
+  </div>
+
+  <div style="font-size:11px; color:#9aa4bd; margin-top:10px;">Sources: Neishabouri, A., Nguyen, J., Samuelsson, J., et al. (2022). Quantification of acceleration as activity counts in ActiGraph wearable. <i>Scientific Reports</i>, 12, 11958. <a href="https://doi.org/10.1038/s41598-022-16003-x" target="_blank" rel="noopener">doi.org/10.1038/s41598-022-16003-x</a> &mdash; co-authored by ActiGraph LLC staff, and the source of the full modern counts algorithm disclosure. Br&oslash;nd, J.C. &amp; Arvidsson, D. (2016). Sampling frequency affects the processing of ActiGraph raw acceleration data to activity counts. <i>Journal of Applied Physiology</i>, 120(3), 362&ndash;369. <a href="https://doi.org/10.1152/japplphysiol.00628.2015" target="_blank" rel="noopener">doi.org/10.1152/japplphysiol.00628.2015</a>. John, D., Morton, A., Arguello, D., Lyden, K., &amp; Bassett, D. (2018). "What Is a Step?" Differences in how a step is detected among three popular activity monitors. <i>Sensors</i>, 18(4), 1206. <a href="https://doi.org/10.3390/s18041206" target="_blank" rel="noopener">doi.org/10.3390/s18041206</a>.</div>
+</div>
+
+<div class="summary-card" style="margin:0 22px 18px;">
+  <h2 style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--amber); margin:0 0 12px; font-weight:700;">Cutpoint Comparison &amp; Original Sources</h2>
+  <table>
+    <thead><tr>
+      <th>Method</th><th>Developed / Validated In</th><th>Axis Used</th>
+      <th class="num">Sedentary</th><th class="num">Light</th><th class="num">Moderate</th><th class="num">Vigorous</th><th class="num">Very Vigorous</th>
+      <th>Source</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td class="methodname">Freedson (1998)</td>
+        <td>Adults</td>
+        <td>Axis 1 (vertical)</td>
+        <td class="num">0&ndash;99</td><td class="num">100&ndash;1951</td><td class="num">1952&ndash;5724</td><td class="num">5725&ndash;9498</td><td class="num">&ge;9499</td>
+        <td><a href="https://doi.org/10.1097/00005768-199805000-00021" target="_blank" rel="noopener">Freedson, Melanson &amp; Sirard (1998), <i>Med Sci Sports Exerc</i>, 30(5), 777&ndash;781</a></td>
+      </tr>
+      <tr>
+        <td class="methodname">Freedson Adult VM3</td>
+        <td>Adults</td>
+        <td>Vector magnitude (3-axis)</td>
+        <td class="num">0&ndash;199*</td><td class="num">200&ndash;2689*</td><td class="num">2690&ndash;6166</td><td class="num">6167&ndash;9642</td><td class="num">&ge;9643</td>
+        <td><a href="https://doi.org/10.1016/j.jsams.2011.04.003" target="_blank" rel="noopener">Sasaki, John &amp; Freedson (2011), <i>J Sci Med Sport</i>, 14(5), 411&ndash;416</a></td>
+      </tr>
+      <tr>
+        <td class="methodname">Troiano (2008)</td>
+        <td>Adults (NHANES)</td>
+        <td>Axis 1 (vertical)</td>
+        <td class="num">0&ndash;99</td><td class="num">100&ndash;2019</td><td class="num">2020&ndash;5998</td><td class="num">&ge;5999</td><td class="num">&mdash;</td>
+        <td><a href="https://doi.org/10.1249/mss.0b013e31815a51b3" target="_blank" rel="noopener">Troiano et al. (2008), <i>Med Sci Sports Exerc</i>, 40(1), 181&ndash;188</a></td>
+      </tr>
+      <tr>
+        <td class="methodname">Evenson (2008)</td>
+        <td>Children/adolescents (5&ndash;8 yr in the original calibration sample)</td>
+        <td>Axis 1 (vertical)</td>
+        <td class="num">0&ndash;99</td><td class="num">100&ndash;2295</td><td class="num">2296&ndash;4011</td><td class="num">&ge;4012</td><td class="num">&mdash;</td>
+        <td><a href="https://doi.org/10.1080/02640410802334196" target="_blank" rel="noopener">Evenson et al. (2008), <i>J Sports Sci</i>, 26(14), 1557&ndash;1565</a></td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="font-size:11px; color:#9aa4bd;">All boundaries are counts per minute (cpm), 60-second epoch. *The sedentary/light boundary at 200 cpm for Freedson VM3 follows common ActiLife practice rather than being set explicitly in the original Sasaki et al. (2011) paper, which established only the moderate/vigorous/very-vigorous boundaries. Evenson cutpoints were developed and validated in children and adolescents; applying them to adult data (as this dashboard allows, for direct comparison) extends them beyond their validated population.</div>
+
+  <h2 style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--amber); margin:18px 0 12px; font-weight:700;">Cadence (Steps/Min) Thresholds, Tudor-Locke</h2>
+  <table>
+    <thead><tr><th>Population</th><th>Age</th><th class="num">Moderate</th><th class="num">Vigorous</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="methodname">Adult</td><td>General adult</td>
+        <td class="num">&ge;100</td><td class="num">&ge;130</td>
+        <td><a href="https://doi.org/10.1186/s12966-019-0769-6" target="_blank" rel="noopener">Tudor-Locke et al. (2019), <i>Int J Behav Nutr Phys Act</i>, 16, 8</a> (consistently confirmed in companion 41&ndash;60 and 61&ndash;85-year-old studies)</td>
+      </tr>
+      <tr><td rowspan="5" class="methodname">Youth (CADENCE-Kids)</td><td>6&ndash;8 yr</td><td class="num">&ge;125</td><td class="num">&ge;155</td>
+        <td rowspan="5"><a href="https://doi.org/10.1186/s12966-018-0651-y" target="_blank" rel="noopener">Tudor-Locke et al. (2018), <i>Int J Behav Nutr Phys Act</i>, 15, 20</a></td></tr>
+      <tr><td>9&ndash;11 yr</td><td class="num">&ge;115</td><td class="num">&ge;130</td></tr>
+      <tr><td>12&ndash;14 yr</td><td class="num">&ge;110</td><td class="num">&ge;125</td></tr>
+      <tr><td>15&ndash;17 yr</td><td class="num">&ge;105</td><td class="num">&ge;125</td></tr>
+      <tr><td>18&ndash;20 yr</td><td class="num">&ge;90</td><td class="num">&ge;125</td></tr>
+    </tbody>
+  </table>
+  <div style="font-size:11px; color:#9aa4bd;">Sedentary is defined here as 0 steps in the epoch; light is any nonzero stepping below the moderate threshold. The 18&ndash;20 yr vigorous value (125) reflects the paper's own statement that the full range across all five youth age groups is "155 to 125 steps/min," consistent with the confirmed 125 values for the 12&ndash;14 and 15&ndash;17 age groups; it was not independently confirmed as its own table cell.</div>
+</div>
+
+<div class="foot">
+  Wear-time validation: <a href="https://doi.org/10.1249/MSS.0b013e3181ed61a3" target="_blank" rel="noopener">Choi, Liu, Matthews &amp; Buchowski (2011), <i>Med Sci Sports Exerc</i>, 43(2), 357&ndash;364</a> &mdash; 90 min of consecutive zero counts, with up to 2 min of non-zero counts tolerated if flanked by 30+ min of zero counts on each side, applied to Axis 1 counts.
+  All intensity minutes are computed from wear-time epochs only, restricted to days meeting your valid-day threshold above. Nothing you upload leaves your browser.
+</div>
+
+<script>
+const el = id => document.getElementById(id);
+let participants = [];
+let pCounter = 0;
+
+// ---------- Cutpoint definitions (verified against published literature) ----------
+const CUTPOINTS = {
+  freedson: { label:'Freedson (1998)', basis:'axis1', hasVeryVigorous:true, bands: [
+    {name:'sedentary', min:0, max:99},{name:'light', min:100, max:1951},
+    {name:'moderate', min:1952, max:5724},{name:'vigorous', min:5725, max:9498},
+    {name:'veryVigorous', min:9499, max:Infinity},
+  ]},
+  freedsonVM3: { label:'Freedson VM3 (Sasaki 2011)', basis:'vm', hasVeryVigorous:true, bands: [
+    {name:'sedentary', min:0, max:199},{name:'light', min:200, max:2689},
+    {name:'moderate', min:2690, max:6166},{name:'vigorous', min:6167, max:9642},
+    {name:'veryVigorous', min:9643, max:Infinity},
+  ]},
+  troiano: { label:'Troiano (2008)', basis:'axis1', hasVeryVigorous:false, bands: [
+    {name:'sedentary', min:0, max:99},{name:'light', min:100, max:2019},
+    {name:'moderate', min:2020, max:5998},{name:'vigorous', min:5999, max:Infinity},
+  ]},
+  evenson: { label:'Evenson (2008, youth)', basis:'axis1', hasVeryVigorous:false, bands: [
+    {name:'sedentary', min:0, max:99},{name:'light', min:100, max:2295},
+    {name:'moderate', min:2296, max:4011},{name:'vigorous', min:4012, max:Infinity},
+  ]},
+};
+const MVPA_BANDS = ['moderate','vigorous','veryVigorous'];
+
+// Tudor-Locke cadence (steps/min) thresholds, verified against the original publications.
+// Adult: Tudor-Locke et al., Walking cadence (steps/min) and intensity in 21-40 year olds:
+//   CADENCE-adults, Int J Behav Nutr Phys Act 2019;16:8 -- consistently confirmed in the 41-60
+//   and 61-85 companion studies as the absolute-intensity heuristic for adults generally.
+const CADENCE_ADULT = { moderate: 100, vigorous: 130 };
+// Youth: Tudor-Locke et al., Cadence (steps/min) and intensity during ambulation in 6-20 year
+//   olds: the CADENCE-kids study, Int J Behav Nutr Phys Act 2018;15:20, Table 4.
+// Note: the 18-20y vigorous value (125) is reported in the paper's text as the floor of the
+// overall "155 to 125" range across all age groups, rather than appearing as its own table cell
+// in the excerpt available; it is consistent with the confirmed 125 values for 12-14y and 15-17y.
+const CADENCE_YOUTH_BANDS = [
+  { minAge:6,  maxAge:8,  moderate:125, vigorous:155 },
+  { minAge:9,  maxAge:11, moderate:115, vigorous:130 },
+  { minAge:12, maxAge:14, moderate:110, vigorous:125 },
+  { minAge:15, maxAge:17, moderate:105, vigorous:125 },
+  { minAge:18, maxAge:20, moderate:90,  vigorous:125 },
+];
+function getYouthCadenceThresholds(age){
+  const clamped = Math.max(6, Math.min(20, age || 12));
+  return CADENCE_YOUTH_BANDS.find(b => clamped>=b.minAge && clamped<=b.maxAge) || CADENCE_YOUTH_BANDS[CADENCE_YOUTH_BANDS.length-1];
+}
+function classifyCadence(stepsPerMin, thresholds){
+  if(stepsPerMin <= 0) return 'sedentary';
+  if(stepsPerMin < thresholds.moderate) return 'light';
+  if(stepsPerMin < thresholds.vigorous) return 'moderate';
+  return 'vigorous';
+}
+
+const INTENSITY_COLORS = {
+  nonwear: '#D9D9D9', sedentary: '#CADCFC', light: '#8FD9B6',
+  moderate: '#E8AA42', vigorous: '#C1443C', veryVigorous: '#7A1F1A',
+};
+function buildDayChartData(dayRows, cutpointDef){
+  return dayRows.map(r => {
+    if(!r.wear) return { color: INTENSITY_COLORS.nonwear, cls:'nonwear' };
+    const val = cutpointDef.basis==='vm' ? r.vm : r.axis1;
+    const cls = classifyEpoch(val, cutpointDef);
+    return { color: INTENSITY_COLORS[cls] || '#999', cls };
+  });
+}
+
+function classifyEpoch(value, def){
+  for(const band of def.bands) if(value>=band.min && value<=band.max) return band.name;
+  return 'unknown';
+}
+
+// ---------- Choi (2011) wear-time algorithm ----------
+function choiNonwear(counts, minPeriodLen, minWindowLen, spikeTolerance){
+  const n = counts.length;
+  const isNonwear = new Array(n).fill(false);
+  const isZero = counts.map(c => c === 0);
+  let i = 0;
+  while(i < n){
+    if(!isZero[i]){ i++; continue; }
+    let j = i, totalLen = 0, segments = [];
+    while(j < n){
+      let zeroStart = j;
+      while(j < n && isZero[j]) j++;
+      let zeroLen = j - zeroStart;
+      segments.push([zeroStart, j]); totalLen += zeroLen;
+      if(j >= n) break;
+      let nzStart = j;
+      while(j < n && !isZero[j]) j++;
+      let nzLen = j - nzStart;
+      if(nzLen <= spikeTolerance && zeroLen >= minWindowLen){
+        let peek = j, followingZeroLen = 0;
+        while(peek < n && isZero[peek]){ peek++; followingZeroLen++; }
+        if(followingZeroLen >= minWindowLen){ segments.push([nzStart, nzStart+nzLen]); totalLen += nzLen; continue; }
+        else break;
+      } else break;
+    }
+    if(totalLen >= minPeriodLen) segments.forEach(([s,e]) => { for(let k=s;k<e;k++) isNonwear[k]=true; });
+    i = j;
+  }
+  return isNonwear;
+}
+
+// ---------- Parsing ----------
+function parseAGDText(text){
+  const lines = text.split(/\r\n|\n/).filter(l=>l.length>0);
+  // line 0: metadata ("Data Scoring Details export for: ..."), line 1: header, rest: data
+  const headerLine = lines[1] || '';
+  const header = headerLine.split(',').map(h=>h.trim().toLowerCase());
+  const idx = {
+    date: header.indexOf('date'), epoch: header.indexOf('epoch'),
+    axis1: header.indexOf('axis1'), axis2: header.indexOf('axis2'), axis3: header.indexOf('axis3'),
+    vm: header.indexOf('vm'), steps: header.indexOf('steps'),
+  };
+  const dataLines = lines.slice(2);
+  const rows = [];
+  for(const line of dataLines){
+    const cols = line.split(',');
+    if(cols.length < 7) continue;
+    const dateStr = cols[idx.date], timeStr = cols[idx.epoch];
+    const [m,d,y] = dateStr.split('/').map(Number);
+    const timeMatch = timeStr.match(/(\d+):(\d+):(\d+)\s*(AM|PM)/i);
+    if(!timeMatch) continue;
+    let hh = parseInt(timeMatch[1],10);
+    const mm = parseInt(timeMatch[2],10), ss = parseInt(timeMatch[3],10);
+    const ampm = timeMatch[4].toUpperCase();
+    if(ampm==='PM' && hh!==12) hh+=12;
+    if(ampm==='AM' && hh===12) hh=0;
+    const dt = new Date(y, m-1, d, hh, mm, ss);
+    rows.push({
+      dateStr, dt,
+      axis1: +cols[idx.axis1], axis2: +cols[idx.axis2], axis3: +cols[idx.axis3],
+      vm: +cols[idx.vm], steps: +cols[idx.steps],
+    });
+  }
+  return rows;
+}
+
+// Gaps in the file (missing epochs) are filled with synthetic zero-count rows and
+// permanently marked non-wear, so the Choi scan runs over one continuous timeline
+// (letting real zero-runs bridge across a gap when appropriate) and so gap time is
+// explicitly visible in day totals rather than silently absent. Capped at 60 days
+// per gap as a safety limit against pathological data.
+const MAX_GAP_MINUTES_TO_FILL = 60*24*60;
+
+function fillGaps(rows){
+  if(rows.length===0) return rows;
+  const filled = [rows[0]];
+  for(let i=1;i<rows.length;i++){
+    const diffMin = Math.round((rows[i].dt - rows[i-1].dt)/60000);
+    if(diffMin > 1 && diffMin <= MAX_GAP_MINUTES_TO_FILL){
+      for(let k=1;k<diffMin;k++){
+        const gapDt = new Date(rows[i-1].dt.getTime() + k*60000);
+        const gapDateStr = (gapDt.getMonth()+1)+'/'+gapDt.getDate()+'/'+gapDt.getFullYear();
+        filled.push({ dateStr: gapDateStr, dt: gapDt, axis1:0, axis2:0, axis3:0, vm:0, steps:0, isGap:true });
+      }
+    }
+    filled.push(rows[i]);
+  }
+  return filled;
+}
+
+function processFile(label, text){
+  const rawRows = parseAGDText(text);
+  rawRows.forEach(r => r.isGap = false);
+  const rows = fillGaps(rawRows);
+  const nonwear = choiNonwear(rows.map(r=>r.axis1), 90, 30, 2);
+  rows.forEach((r,i) => { r.wear = !r.isGap && !nonwear[i]; });
+
+  const byDate = {};
+  rows.forEach(r => { (byDate[r.dateStr] = byDate[r.dateStr] || []).push(r); });
+
+  return { id: 'p'+(++pCounter), label, rows, byDate };
+}
+
+function fmtNum(v,d){ return (v===null||v===undefined||!isFinite(v)) ? '—' : v.toFixed(d); }
+
+function computeDayResults(participant){
+  const validHours = parseFloat(el('setValidHours').value) || 10;
+  const dayResults = Object.entries(participant.byDate).map(([date, dayRows]) => {
+    const wearRows = dayRows.filter(r=>r.wear);
+    const wearMinutes = wearRows.length;
+    const gapMinutes = dayRows.filter(r=>r.isGap).length;
+    const choiNonwearMinutes = dayRows.filter(r=>!r.isGap && !r.wear).length;
+    const isWeekend = [0,6].includes(dayRows[0].dt.getDay());
+    const valid = wearMinutes >= validHours*60;
+    const result = { date, wearMinutes, gapMinutes, choiNonwearMinutes, isWeekend, valid, dow: dayRows[0].dt.toLocaleDateString(undefined,{weekday:'short'}) };
+    for(const [methodName, def] of Object.entries(CUTPOINTS)){
+      const counts = {sedentary:0, light:0, moderate:0, vigorous:0, veryVigorous:0};
+      let steps = 0;
+      wearRows.forEach(r => {
+        const val = def.basis==='vm' ? r.vm : r.axis1;
+        const cls = classifyEpoch(val, def);
+        if(counts[cls]!==undefined) counts[cls]++;
+        steps += r.steps;
+      });
+      const mvpa = MVPA_BANDS.reduce((s,b)=>s+counts[b],0);
+      result[methodName] = {...counts, mvpa, steps};
+    }
+    return result;
+  }).sort((a,b)=> a.date.localeCompare(b.date, undefined, {numeric:true}) || (new Date(a.date)-new Date(b.date)));
+  // proper date sort (dates are M/D/YYYY strings, sort by actual date value)
+  dayResults.sort((a,b)=> participant.byDate[a.date][0].dt - participant.byDate[b.date][0].dt);
+  return dayResults;
+}
+
+function computeCadenceResults(participant){
+  const validHours = parseFloat(el('setValidHours').value) || 10;
+  const thresholds = participant.cadenceMode==='youth' ? getYouthCadenceThresholds(participant.cadenceAge) : CADENCE_ADULT;
+  const dayResults = Object.entries(participant.byDate).map(([date, dayRows]) => {
+    const wearRows = dayRows.filter(r=>r.wear);
+    const wearMinutes = wearRows.length;
+    const isWeekend = [0,6].includes(dayRows[0].dt.getDay());
+    const valid = wearMinutes >= validHours*60;
+    const counts = {sedentary:0, light:0, moderate:0, vigorous:0};
+    wearRows.forEach(r => { const cls = classifyCadence(r.steps, thresholds); if(counts[cls]!==undefined) counts[cls]++; });
+    const mvpa = counts.moderate + counts.vigorous;
+    return { date, wearMinutes, isWeekend, valid, ...counts, mvpa };
+  });
+  dayResults.sort((a,b)=> participant.byDate[a.date][0].dt - participant.byDate[b.date][0].dt);
+  return { dayResults, thresholds };
+}
+
+function renderCadence(participant){
+  const card = el('card_'+participant.id);
+  if(!card) return;
+  const { dayResults, thresholds } = computeCadenceResults(participant);
+  const validDays = dayResults.filter(d=>d.valid);
+
+  card.querySelector('.cadence-thresholds-note').textContent =
+    'Moderate ≥' + thresholds.moderate + ' steps/min, vigorous ≥' + thresholds.vigorous + ' steps/min';
+
+  const view = card.dataset.cadenceView || 'day';
+  card.querySelectorAll('.cadence-toggle-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+  const scale = view==='week' ? 7 : 1;
+  const body = card.querySelector('.cadence-table-body');
+  if(validDays.length===0){
+    body.innerHTML = '<tr><td colspan="6" style="color:#9aa4bd;">No valid days available</td></tr>';
+    return;
+  }
+  const mean = (key) => validDays.reduce((s,d)=>s+d[key],0)/validDays.length;
+  const label = participant.cadenceMode==='youth' ? ('Youth, age '+participant.cadenceAge) : 'Adult';
+  body.innerHTML = `<tr>
+    <td>${label}</td>
+    <td class="num">${fmtNum(mean('sedentary')*scale,1)}</td>
+    <td class="num">${fmtNum(mean('light')*scale,1)}</td>
+    <td class="num">${fmtNum(mean('moderate')*scale,1)}</td>
+    <td class="num">${fmtNum(mean('vigorous')*scale,1)}</td>
+    <td class="num">${fmtNum(mean('mvpa')*scale,1)}</td>
+  </tr>`;
+}
+
+function renderParticipant(participant){
+  const card = el('card_'+participant.id);
+  if(!card) return;
+  const minDays = parseInt(el('setMinDays').value,10) || 0;
+  const minWeekendDays = parseInt(el('setMinWeekendDays').value,10) || 0;
+
+  const dayResults = computeDayResults(participant);
+  const validDays = dayResults.filter(d=>d.valid);
+  const validWeekendDays = validDays.filter(d=>d.isWeekend);
+  const meetsCriteria = validDays.length >= minDays && validWeekendDays.length >= minWeekendDays;
+
+  const banner = card.querySelector('.validity-banner');
+  banner.className = 'validity-banner ' + (meetsCriteria ? 'validity-ok' : 'validity-bad');
+  banner.innerHTML = `<b>${validDays.length} of ${dayResults.length} days valid</b> (${validWeekendDays.length} weekend). `
+    + `Criteria: &ge;${minDays} valid days, &ge;${minWeekendDays} valid weekend days &mdash; `
+    + `<b>${meetsCriteria ? 'MET' : 'NOT MET'}</b>.`;
+
+  const dayTable = card.querySelector('.day-table-body');
+  dayTable.innerHTML = dayResults.map(d => `
+    <tr class="${d.valid?'':'day-invalid'}">
+      <td class="datecell">${d.date}</td>
+      <td>${d.dow}${d.isWeekend?' (wknd)':''}</td>
+      <td class="num">${(d.wearMinutes/60).toFixed(1)}</td>
+      <td class="num">${(d.gapMinutes/60).toFixed(1)}</td>
+      <td class="num">${(d.choiNonwearMinutes/60).toFixed(1)}</td>
+      <td>${d.valid ? 'Valid' : 'Excluded'}</td>
+    </tr>`).join('');
+
+  const view = card.dataset.view || 'day';
+  const scale = view==='week' ? 7 : 1;
+  const intensityBody = card.querySelector('.intensity-table-body');
+  intensityBody.innerHTML = Object.entries(CUTPOINTS).map(([key, def]) => {
+    if(validDays.length===0){
+      return `<tr><td>${def.label}</td><td colspan="7" style="color:#9aa4bd;">No valid days available</td></tr>`;
+    }
+    const mean = (sub) => validDays.reduce((s,d)=>s+d[key][sub],0)/validDays.length;
+    const vv = def.hasVeryVigorous ? fmtNum(mean('veryVigorous')*scale,1) : '—';
+    return `<tr>
+      <td>${def.label}</td>
+      <td class="num">${fmtNum(mean('sedentary')*scale,1)}</td>
+      <td class="num">${fmtNum(mean('light')*scale,1)}</td>
+      <td class="num">${fmtNum(mean('moderate')*scale,1)}</td>
+      <td class="num">${fmtNum(mean('vigorous')*scale,1)}</td>
+      <td class="num">${vv}</td>
+      <td class="num">${fmtNum(mean('mvpa')*scale,1)}</td>
+      <td class="num">${fmtNum(mean('steps')*scale,0)}</td>
+    </tr>`;
+  }).join('');
+
+  card.querySelectorAll('.toggle-btn:not(.cadence-toggle-btn)').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+}
+
+function createCard(participant){
+  el('emptyMsg').style.display = 'none';
+  const card = document.createElement('div');
+  card.className = 'pcard';
+  card.id = 'card_'+participant.id;
+  card.dataset.view = 'day';
+  card.innerHTML = `
+    <div class="pcard-head">
+      <input type="text" value="${participant.label}" />
+      <button class="removebtn" title="Remove">✕</button>
+    </div>
+    <div class="validity-banner"></div>
+    <h3 class="sectiontitle">Day-by-Day Wear Time</h3>
+    <table>
+      <thead><tr><th>Date</th><th>Day</th><th class="num">Wear (hrs)</th><th class="num">Gap (hrs)</th><th class="num">Device Off (hrs)</th><th>Status</th></tr></thead>
+      <tbody class="day-table-body"></tbody>
+    </table>
+    <h3 class="sectiontitle">Activity Intensity, All Methods</h3>
+    <div class="toggle-row">
+      <button class="toggle-btn" data-view="day">Per Day (mean, valid days)</button>
+      <button class="toggle-btn" data-view="week">Per Week (projected, &times;7)</button>
+    </div>
+    <table>
+      <thead><tr><th>Method</th><th class="num">Sedentary</th><th class="num">Light</th><th class="num">Moderate</th><th class="num">Vigorous</th><th class="num">V.Vigorous</th><th class="num">MVPA</th><th class="num">Steps</th></tr></thead>
+      <tbody class="intensity-table-body"></tbody>
+    </table>
+    <h3 class="sectiontitle">Cadence-Based Intensity (Tudor-Locke)</h3>
+    <div class="timeline-controls">
+      <label style="font-size:12.5px; color:var(--slate);">Population:
+        <select class="cadence-mode-select">
+          <option value="adult">Adult</option>
+          <option value="youth">Youth, age 6&ndash;20 (CADENCE-Kids)</option>
+        </select>
+      </label>
+      <label class="cadence-age-wrap" style="font-size:12.5px; color:var(--slate); display:none;">Age:
+        <input type="number" class="cadence-age-input" value="12" min="6" max="20" style="width:55px; padding:4px 6px; border:1px solid var(--ice); border-radius:5px;">
+      </label>
+      <span class="cadence-thresholds-note" style="font-size:11.5px; color:#9aa4bd;"></span>
+    </div>
+    <div class="toggle-row">
+      <button class="toggle-btn cadence-toggle-btn" data-view="day">Per Day (mean, valid days)</button>
+      <button class="toggle-btn cadence-toggle-btn" data-view="week">Per Week (projected, &times;7)</button>
+    </div>
+    <table>
+      <thead><tr><th>Basis</th><th class="num">Sedentary</th><th class="num">Light</th><th class="num">Moderate</th><th class="num">Vigorous</th><th class="num">MVPA</th></tr></thead>
+      <tbody class="cadence-table-body"></tbody>
+    </table>
+    <h3 class="sectiontitle">Activity Timeline</h3>
+    <div class="timeline-controls">
+      <div class="daynav">
+        <button class="day-prev-btn">&larr; Prev Day</button>
+        <span class="daylabel"></span>
+        <button class="day-next-btn">Next Day &rarr;</button>
+      </div>
+      <label style="font-size:12.5px; color:var(--slate);">Color bars by:
+        <select class="cutpoint-select"></select>
+      </label>
+    </div>
+    <div class="legend-row">
+      <span class="legend-chip"><span class="legend-swatch" style="background:#D9D9D9;"></span>Non-wear / gap</span>
+      <span class="legend-chip"><span class="legend-swatch" style="background:#CADCFC;"></span>Sedentary</span>
+      <span class="legend-chip"><span class="legend-swatch" style="background:#8FD9B6;"></span>Light</span>
+      <span class="legend-chip"><span class="legend-swatch" style="background:#E8AA42;"></span>Moderate</span>
+      <span class="legend-chip"><span class="legend-swatch" style="background:#C1443C;"></span>Vigorous</span>
+      <span class="legend-chip"><span class="legend-swatch" style="background:#7A1F1A;"></span>Very Vigorous</span>
+    </div>
+    <div class="chart-block">
+      <h4>Steps per Minute <span style="font-weight:400; text-transform:none; color:#9aa4bd;" class="steps-cadencenote"></span></h4>
+      <div class="chart-canvas-wrap"><canvas class="chart-steps"></canvas></div>
+    </div>
+    <div class="chart-block">
+      <h4>Axis 1 Counts per Minute <span style="font-weight:400; text-transform:none; color:#9aa4bd;" class="axis1-matchnote"></span></h4>
+      <div class="chart-canvas-wrap"><canvas class="chart-axis1"></canvas></div>
+    </div>
+    <div class="chart-block">
+      <h4>Vector Magnitude (VM3) Counts per Minute <span style="font-weight:400; text-transform:none; color:#9aa4bd;" class="vm-matchnote"></span></h4>
+      <div class="chart-canvas-wrap"><canvas class="chart-vm"></canvas></div>
+    </div>
+  `;
+  el('cardsWrap').appendChild(card);
+
+  participant.selectedDayIdx = 0;
+  participant.selectedCutpoint = 'freedson';
+  participant.cadenceMode = 'adult';
+  participant.cadenceAge = 12;
+
+  const cutpointSelect = card.querySelector('.cutpoint-select');
+  cutpointSelect.innerHTML = Object.entries(CUTPOINTS).map(([key,def])=>`<option value="${key}">${def.label}</option>`).join('');
+  cutpointSelect.addEventListener('change', e=>{ participant.selectedCutpoint = e.target.value; renderTimeline(participant); });
+
+  card.querySelector('.day-prev-btn').addEventListener('click', ()=>{
+    if(participant.selectedDayIdx>0){ participant.selectedDayIdx--; renderTimeline(participant); }
+  });
+  card.querySelector('.day-next-btn').addEventListener('click', ()=>{
+    participant.selectedDayIdx++; renderTimeline(participant);
+  });
+
+  card.querySelectorAll('.toggle-btn:not(.cadence-toggle-btn)').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ card.dataset.view = btn.dataset.view; renderParticipant(participant); });
+  });
+  card.querySelectorAll('.cadence-toggle-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      card.dataset.cadenceView = btn.dataset.view;
+      card.querySelectorAll('.cadence-toggle-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      renderCadence(participant);
+    });
+  });
+  card.querySelector('.cadence-mode-select').addEventListener('change', e=>{
+    participant.cadenceMode = e.target.value;
+    card.querySelector('.cadence-age-wrap').style.display = participant.cadenceMode==='youth' ? 'inline-flex' : 'none';
+    renderCadence(participant);
+    renderTimeline(participant);
+  });
+  card.querySelector('.cadence-age-input').addEventListener('input', e=>{
+    participant.cadenceAge = parseInt(e.target.value, 10) || 12;
+    renderCadence(participant);
+    renderTimeline(participant);
+  });
+  card.querySelector('.removebtn').addEventListener('click', ()=>{
+    participants = participants.filter(p=>p.id!==participant.id);
+    card.remove();
+    if(participants.length===0) el('emptyMsg').style.display = 'block';
+  });
+  card.querySelector('input[type=text]').addEventListener('input', e=>{ participant.label = e.target.value; });
+
+  renderParticipant(participant);
+  renderCadence(participant);
+  renderTimeline(participant);
+}
+
+function renderAll(){ participants.forEach(renderParticipant); }
+
+function getSortedDateKeys(participant){
+  return Object.keys(participant.byDate).sort((a,b) => participant.byDate[a][0].dt - participant.byDate[b][0].dt);
+}
+
+function updateOrCreateChart(participant, key, canvas, labels, data, colors){
+  participant.charts = participant.charts || {};
+  if(!participant.charts[key]){
+    participant.charts[key] = new Chart(canvas, {
+      type:'bar',
+      data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, barPercentage:1.0, categoryPercentage:1.0 }] },
+      options:{
+        animation:false, responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{
+          x:{ ticks:{ maxTicksLimit:12, autoSkip:true, maxRotation:0 }, grid:{display:false} },
+          y:{ beginAtZero:true },
+        },
+      },
+    });
+  } else {
+    const chart = participant.charts[key];
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = data;
+    chart.data.datasets[0].backgroundColor = colors;
+    chart.update();
+  }
+}
+
+function renderTimeline(participant){
+  const card = el('card_'+participant.id);
+  if(!card) return;
+  const dateKeys = getSortedDateKeys(participant);
+  if(dateKeys.length===0) return;
+  if(participant.selectedDayIdx >= dateKeys.length) participant.selectedDayIdx = dateKeys.length-1;
+  if(participant.selectedDayIdx < 0) participant.selectedDayIdx = 0;
+  const dateKey = dateKeys[participant.selectedDayIdx];
+  const dayRows = participant.byDate[dateKey] || [];
+
+  card.querySelector('.daylabel').textContent = dateKey + ' (' + (participant.selectedDayIdx+1) + ' of ' + dateKeys.length + ')';
+  card.querySelector('.day-prev-btn').disabled = participant.selectedDayIdx<=0;
+  card.querySelector('.day-next-btn').disabled = participant.selectedDayIdx>=dateKeys.length-1;
+
+  const cutpointDef = CUTPOINTS[participant.selectedCutpoint];
+  card.querySelector('.axis1-matchnote').textContent = cutpointDef.basis==='axis1' ? '— colored by '+cutpointDef.label : '— not the selected cutpoint’s basis';
+  card.querySelector('.vm-matchnote').textContent = cutpointDef.basis==='vm' ? '— colored by '+cutpointDef.label : '— not the selected cutpoint’s basis';
+
+  const chartData = buildDayChartData(dayRows, cutpointDef);
+  const labels = dayRows.map(r => r.dt.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'}));
+  const neutralColors = dayRows.map(()=>'#9aa4bd');
+
+  const cadenceThresholds = participant.cadenceMode==='youth' ? getYouthCadenceThresholds(participant.cadenceAge) : CADENCE_ADULT;
+  const cadenceLabel = participant.cadenceMode==='youth' ? ('youth, age '+participant.cadenceAge) : 'adult';
+  card.querySelector('.steps-cadencenote').textContent = '— colored by Tudor-Locke cadence (' + cadenceLabel + ')';
+  const stepsColors = dayRows.map(r => {
+    if(!r.wear) return INTENSITY_COLORS.nonwear;
+    return INTENSITY_COLORS[classifyCadence(r.steps, cadenceThresholds)] || '#999';
+  });
+  const axis1Colors = cutpointDef.basis==='axis1' ? chartData.map(d=>d.color) : neutralColors;
+  const vmColors = cutpointDef.basis==='vm' ? chartData.map(d=>d.color) : neutralColors;
+
+  updateOrCreateChart(participant, 'steps', card.querySelector('.chart-steps'), labels, dayRows.map(r=>r.steps), stepsColors);
+  updateOrCreateChart(participant, 'axis1', card.querySelector('.chart-axis1'), labels, dayRows.map(r=>r.axis1), axis1Colors);
+  updateOrCreateChart(participant, 'vm', card.querySelector('.chart-vm'), labels, dayRows.map(r=>r.vm), vmColors);
+}
+
+document.querySelectorAll('.learnmore-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const target = document.getElementById(btn.dataset.target);
+    const isOpen = target.style.display === 'block';
+    target.style.display = isOpen ? 'none' : 'block';
+    btn.textContent = isOpen ? 'Learn more' : 'Show less';
+  });
+});
+
+el('fileInput').addEventListener('change', e=>{
+  Array.from(e.target.files).forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const participant = processFile(file.name.replace(/\.csv$/i,''), ev.target.result);
+      participants.push(participant);
+      createCard(participant);
+    };
+    reader.readAsText(file);
+  });
+  e.target.value = '';
+});
+
+['setValidHours','setMinDays','setMinWeekendDays'].forEach(id=>{
+  el(id).addEventListener('input', renderAll);
+});
+</script>
+
+</body>
+</html>

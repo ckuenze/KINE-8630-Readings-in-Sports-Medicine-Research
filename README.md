@@ -11,10 +11,11 @@ These tools show what happens to biomechanical data when methodological choices 
 | [Sampling and Event Detection Explorer](sampling-event-detection-explorer/) | Sampling rate, peak underestimation, missed events, and aliasing |
 | [FFT and Filter Explorer](fft-filter-explorer/) | Frequency-domain analysis, noise sources, and digital filtering |
 | [Motion Capture Dashboard](motion-capture-dashboard/) | Marker clusters, joint center methods, gap filling, and data-quality checks |
+| [PA Processing Dashboard](pa-processing-dashboard/) | Accelerometer wear-time validation, valid-day criteria, and intensity cutpoints |
 
 ## Data
 
-All signals in these tools are simulated for teaching. No participant data are stored in this repository. Simulated isometric and isokinetic dynamometer files, built to match the structure of real lab exports, are in [`data/`](data/).
+All signals in these tools are simulated for teaching. No participant data are stored in this repository. Simulated isometric and isokinetic dynamometer files, built to match the structure of real lab exports, are in [`data/`](data/). Simulated ActiGraph epoch files for the PA Processing Dashboard are in [`pa-processing-dashboard/example-data/`](pa-processing-dashboard/example-data/).
 
 ## How to open a tool
 
