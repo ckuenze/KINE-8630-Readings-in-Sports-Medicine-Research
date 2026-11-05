@@ -22,4 +22,4 @@ Comma-separated, one header row.
 - **Isometric files:** `Time,Torque`
 - **Isokinetic files:** `Time,Torque,Angle`
 
-`Time` is in seconds and `Angle` is the knee angle in degrees (90° = flexed, 0° = full extension). In the isokinetic files, extension torque is positive and flexion torque is negative.
+`Time` is in seconds, `Torque` is in N·m, and `Angle` is the knee angle in degrees (90° = flexed, 0° = full extension). In the isokinetic files, extension torque is positive and flexion torque is negative.
