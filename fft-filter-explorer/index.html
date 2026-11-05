@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Filtering &amp; the Frequency Domain</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#1E2761;
+    --navy-soft:#273575;
+    --ice:#CADCFC;
+    --amber:#E8AA42;
+    --slate:#44546A;
+    --bg:#FAFBFF;
+    --white:#FFFFFF;
+    --red:#C1443C;
+    --red-bg:#FDEDEC;
+    --green:#1C9C6E;
+    --green-bg:#EAF8F2;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:Calibri,'Segoe UI',Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--navy);
+  }
+  header{
+    background:var(--navy);
+    color:var(--white);
+    padding:22px 28px 20px;
+  }
+  header h1{
+    font-family:Cambria,Georgia,'Times New Roman',serif;
+    margin:0 0 4px;
+    font-size:26px;
+  }
+  header p{
+    margin:0;
+    color:var(--ice);
+    font-size:14.5px;
+    max-width:820px;
+    line-height:1.4;
+  }
+  .layout{
+    display:flex;
+    gap:18px;
+    padding:18px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+  .controls{
+    width:330px;
+    flex-shrink:0;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .charts{
+    flex:1;
+    min-width:420px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .card{
+    background:var(--white);
+    border:1px solid var(--ice);
+    border-radius:10px;
+    padding:16px 18px;
+  }
+  .card h2{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:0.6px;
+    color:var(--amber);
+    margin:0 0 12px;
+    font-weight:700;
+  }
+  .row{
+    margin-bottom:12px;
+  }
+  .row:last-child{margin-bottom:0;}
+  label{
+    display:flex;
+    justify-content:space-between;
+    font-size:13.5px;
+    color:var(--slate);
+    margin-bottom:4px;
+  }
+  label span.val{
+    color:var(--navy);
+    font-weight:700;
+  }
+  input[type=range]{
+    width:100%;
+    accent-color:var(--navy);
+  }
+  select{
+    width:100%;
+    padding:7px 8px;
+    border-radius:6px;
+    border:1px solid var(--ice);
+    font-size:14px;
+    color:var(--navy);
+    background:var(--white);
+  }
+  .toggle-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .toggle-row input[type=checkbox]{
+    width:16px;height:16px;accent-color:var(--red);
+  }
+  .toggle-row label{
+    margin:0;
+    font-size:13.5px;
+    color:var(--navy);
+    font-weight:600;
+  }
+  .chart-card{
+    background:var(--white);
+    border:1px solid var(--ice);
+    border-radius:10px;
+    padding:12px 16px 6px;
+  }
+  .chart-card h3{
+    font-size:13.5px;
+    margin:2px 0 8px;
+    color:var(--navy);
+  }
+  .chart-wrap{
+    position:relative;
+    height:190px;
+  }
+  .callouts{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .callout{
+    border-radius:8px;
+    padding:9px 12px;
+    font-size:13px;
+    line-height:1.35;
+    border:1px solid transparent;
+  }
+  .callout.info{ background:var(--ice); color:var(--navy); border-color:#b7c9ef;}
+  .callout.warn{ background:var(--red-bg); color:var(--navy); border-color:var(--red);}
+  .callout.good{ background:var(--green-bg); color:var(--navy); border-color:var(--green);}
+  .callout b{ color:inherit; }
+  .legend-line{
+    display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle;
+  }
+  .foot{
+    padding:4px 18px 18px;
+    font-size:11.5px;
+    color:#9aa4bd;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Filtering &amp; the Frequency Domain</h1>
+  <p>Build a signal, add realistic noise, then filter it — and watch what happens in both the time domain and the frequency domain at once. Sample rate is fixed at 256 Hz over a 2-second window, so the frequency plot goes up to the Nyquist frequency of 128 Hz.</p>
+</header>
+
+<div class="layout">
+
+  <div class="controls">
+
+    <div class="card">
+      <h2>1 &middot; Movement Signal</h2>
+      <div class="row">
+        <label for="preset">Activity preset</label>
+        <select id="preset">
+          <option value="running">Running (~2.8 Hz stride rate)</option>
+          <option value="walking">Walking (~1.8 Hz stride rate)</option>
+          <option value="jump">Jump landing (single impact)</option>
+        </select>
+      </div>
+      <div class="row" id="freqRow">
+        <label>Stride frequency <span class="val" id="freqVal">2.8 Hz</span></label>
+        <input type="range" id="freq" min="1" max="4.5" step="0.1" value="2.8">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2 &middot; Add Realistic Noise</h2>
+      <div class="toggle-row">
+        <input type="checkbox" id="humOn">
+        <label for="humOn">Powerline hum (60 Hz)</label>
+      </div>
+      <div class="row">
+        <label>Hum strength <span class="val" id="humVal">0.15</span></label>
+        <input type="range" id="humAmp" min="0" max="0.4" step="0.01" value="0.15">
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="artifactOn">
+        <label for="artifactOn">Motion artifact (~30&ndash;40 Hz)</label>
+      </div>
+      <div class="row">
+        <label>Artifact strength <span class="val" id="artifactVal">0.20</span></label>
+        <input type="range" id="artifactAmp" min="0" max="0.5" step="0.01" value="0.20">
+      </div>
+      <div class="row">
+        <label>Broadband sensor noise <span class="val" id="noiseVal">0.05</span></label>
+        <input type="range" id="noiseAmp" min="0" max="0.5" step="0.01" value="0.05">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3 &middot; Apply a Filter</h2>
+      <div class="row">
+        <label for="filterType">Filter type</label>
+        <select id="filterType">
+          <option value="none">None (raw signal)</option>
+          <option value="movavg">Moving average</option>
+          <option value="lowpass">Low-pass</option>
+          <option value="highpass">High-pass</option>
+          <option value="notch">Notch</option>
+        </select>
+      </div>
+      <div class="row" id="paramRowA">
+        <label id="paramLabelA">Window size <span class="val" id="paramValA">9 samples</span></label>
+        <input type="range" id="paramA" min="1" max="41" step="2" value="9">
+      </div>
+      <div class="row" id="paramRowB" style="display:none;">
+        <label id="paramLabelB">Q (notch narrowness) <span class="val" id="paramValB">8</span></label>
+        <input type="range" id="paramB" min="1" max="20" step="1" value="8">
+      </div>
+    </div>
+
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <h3><span class="legend-line" style="background:#B9C4DD;"></span>Original &nbsp;&nbsp;<span class="legend-line" style="background:#1E2761;"></span>After filtering &mdash; Time Domain</h3>
+      <div class="chart-wrap"><canvas id="timeChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3><span class="legend-line" style="background:#B9C4DD;"></span>Original &nbsp;&nbsp;<span class="legend-line" style="background:#E8AA42;"></span>After filtering &mdash; Frequency Domain (FFT magnitude)</h3>
+      <div class="chart-wrap"><canvas id="freqChart"></canvas></div>
+    </div>
+    <div class="callouts" id="callouts"></div>
+  </div>
+
+</div>
+<div class="foot">Built for in-class demonstration &middot; sampling at 256 Hz, 512-point FFT &middot; filters are simple teaching implementations (1-pole IIR low/high-pass, biquad notch), not tuned Butterworth designs.</div>
+
+<script>
+const FS = 256;
+const N = 512;
+
+// ---------- signal generation ----------
+function movementSignal(kind, f0){
+  const x = new Float64Array(N);
+  if(kind === 'jump'){
+    const impactT = 0.6;
+    for(let n=0;n<N;n++){
+      const t = n/FS;
+      const dt = t - impactT;
+      x[n] = dt >= 0 ? Math.exp(-dt*14) * Math.sin(2*Math.PI*9*dt) : 0;
+    }
+  } else {
+    for(let n=0;n<N;n++){
+      const t = n/FS;
+      x[n] = Math.sin(2*Math.PI*f0*t)
+           + 0.35*Math.sin(2*Math.PI*2*f0*t + 0.6)
+           + 0.15*Math.sin(2*Math.PI*3*f0*t + 1.1);
+    }
+  }
+  return x;
+}
+
+function addNoise(x, opts){
+  const y = Float64Array.from(x);
+  for(let n=0;n<N;n++){
+    const t = n/FS;
+    if(opts.humOn) y[n] += opts.humAmp * Math.sin(2*Math.PI*60*t);
+    if(opts.artifactOn){
+      y[n] += opts.artifactAmp*0.6*Math.sin(2*Math.PI*32*t + 0.3)
+            + opts.artifactAmp*0.6*Math.sin(2*Math.PI*38*t + 1.4);
+    }
+    if(opts.noiseAmp > 0){
+      // approx gaussian via sum of uniforms
+      let u = 0;
+      for(let k=0;k<4;k++) u += Math.random();
+      y[n] += opts.noiseAmp * (u/4 - 0.5) * 3.2;
+    }
+  }
+  return y;
+}
+
+// ---------- filters ----------
+function movingAverage(x, win){
+  const y = new Float64Array(N);
+  const half = Math.floor(win/2);
+  for(let n=0;n<N;n++){
+    let sum=0, cnt=0;
+    for(let k=-half;k<=half;k++){
+      const idx = n+k;
+      if(idx>=0 && idx<N){ sum += x[idx]; cnt++; }
+    }
+    y[n] = sum/cnt;
+  }
+  return y;
+}
+
+function onePoleLowPass(x, fc){
+  const y = new Float64Array(N);
+  const dt = 1/FS;
+  const rc = 1/(2*Math.PI*fc);
+  const alpha = dt/(rc+dt);
+  y[0] = x[0];
+  for(let n=1;n<N;n++){
+    y[n] = y[n-1] + alpha*(x[n]-y[n-1]);
+  }
+  return y;
+}
+
+function onePoleHighPass(x, fc){
+  const y = new Float64Array(N);
+  const dt = 1/FS;
+  const rc = 1/(2*Math.PI*fc);
+  const alpha = rc/(rc+dt);
+  y[0] = 0;
+  for(let n=1;n<N;n++){
+    y[n] = alpha*(y[n-1] + x[n] - x[n-1]);
+  }
+  return y;
+}
+
+function notchFilter(x, f0, Q){
+  const y = new Float64Array(N);
+  const w0 = 2*Math.PI*f0/FS;
+  const alpha = Math.sin(w0)/(2*Q);
+  const cosw0 = Math.cos(w0);
+  let b0=1, b1=-2*cosw0, b2=1;
+  let a0=1+alpha, a1=-2*cosw0, a2=1-alpha;
+  b0/=a0; b1/=a0; b2/=a0; a1/=a0; a2/=a0;
+  let x1=0,x2=0,y1=0,y2=0;
+  for(let n=0;n<N;n++){
+    const xn = x[n];
+    const yn = b0*xn + b1*x1 + b2*x2 - a1*y1 - a2*y2;
+    y[n] = yn;
+    x2=x1; x1=xn; y2=y1; y1=yn;
+  }
+  return y;
+}
+
+function applyFilter(x, type, a, b){
+  if(type==='none') return Float64Array.from(x);
+  if(type==='movavg') return movingAverage(x, a);
+  if(type==='lowpass') return onePoleLowPass(x, a);
+  if(type==='highpass') return onePoleHighPass(x, a);
+  if(type==='notch') return notchFilter(x, a, b);
+  return Float64Array.from(x);
+}
+
+// ---------- FFT (iterative radix-2) ----------
+function fft(reIn){
+  const re = Float64Array.from(reIn);
+  const im = new Float64Array(N);
+  // bit reversal
+  for(let i=1, j=0; i<N; i++){
+    let bit = N>>1;
+    for(; j & bit; bit >>=1) j ^= bit;
+    j ^= bit;
+    if(i<j){ [re[i],re[j]]=[re[j],re[i]]; [im[i],im[j]]=[im[j],im[i]]; }
+  }
+  for(let len=2; len<=N; len<<=1){
+    const ang = -2*Math.PI/len;
+    const wr = Math.cos(ang), wi = Math.sin(ang);
+    for(let i=0;i<N;i+=len){
+      let curWr=1, curWi=0;
+      for(let k=0;k<len/2;k++){
+        const ur=re[i+k], ui=im[i+k];
+        const vr=re[i+k+len/2]*curWr - im[i+k+len/2]*curWi;
+        const vi=re[i+k+len/2]*curWi + im[i+k+len/2]*curWr;
+        re[i+k]=ur+vr; im[i+k]=ui+vi;
+        re[i+k+len/2]=ur-vr; im[i+k+len/2]=ui-vi;
+        const nwr=curWr*wr-curWi*wi, nwi=curWr*wi+curWi*wr;
+        curWr=nwr; curWi=nwi;
+      }
+    }
+  }
+  return {re, im};
+}
+
+function magnitudeSpectrum(x){
+  const {re, im} = fft(x);
+  const half = N/2;
+  const mags = new Float64Array(half);
+  for(let k=0;k<half;k++){
+    mags[k] = 2/N * Math.sqrt(re[k]*re[k]+im[k]*im[k]);
+  }
+  return mags;
+}
+
+function freqAxis(){
+  const half = N/2;
+  const f = new Float64Array(half);
+  for(let k=0;k<half;k++) f[k] = k*FS/N;
+  return f;
+}
+
+// ---------- charts ----------
+const timeLabels = Array.from({length:N}, (_,n)=> (n/FS).toFixed(2));
+const freqs = Array.from(freqAxis());
+
+const timeChart = new Chart(document.getElementById('timeChart'), {
+  type:'line',
+  data:{ labels: timeLabels, datasets:[
+    { label:'original', data:[], borderColor:'#B9C4DD', borderWidth:1.5, pointRadius:0, tension:0 },
+    { label:'filtered', data:[], borderColor:'#1E2761', borderWidth:2, pointRadius:0, tension:0 },
+  ]},
+  options:{
+    animation:false, responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{
+      x:{ title:{display:true,text:'time (s)'}, ticks:{ maxTicksLimit:8 } },
+      y:{ title:{display:true,text:'amplitude'} }
+    }
+  }
+});
+
+const freqChart = new Chart(document.getElementById('freqChart'), {
+  type:'line',
+  data:{ labels: freqs.map(f=>f.toFixed(0)), datasets:[
+    { label:'original', data:[], borderColor:'#B9C4DD', borderWidth:1.5, pointRadius:0, tension:0.15 },
+    { label:'filtered', data:[], borderColor:'#E8AA42', borderWidth:2, pointRadius:0, tension:0.15 },
+  ]},
+  options:{
+    animation:false, responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{
+      x:{ title:{display:true,text:'frequency (Hz)'}, ticks:{ maxTicksLimit:12 } },
+      y:{ title:{display:true,text:'magnitude'} }
+    }
+  }
+});
+
+// ---------- UI wiring ----------
+const el = id => document.getElementById(id);
+const presetEl=el('preset'), freqEl=el('freq'), freqRow=el('freqRow'), freqVal=el('freqVal');
+const humOn=el('humOn'), humAmp=el('humAmp'), humVal=el('humVal');
+const artifactOn=el('artifactOn'), artifactAmp=el('artifactAmp'), artifactVal=el('artifactVal');
+const noiseAmp=el('noiseAmp'), noiseVal=el('noiseVal');
+const filterType=el('filterType');
+const paramRowA=el('paramRowA'), paramLabelA=el('paramLabelA'), paramA=el('paramA'), paramValA=el('paramValA');
+const paramRowB=el('paramRowB'), paramLabelB=el('paramLabelB'), paramB=el('paramB'), paramValB=el('paramValB');
+const callouts = el('callouts');
+
+function updateParamUIForFilter(){
+  const t = filterType.value;
+  if(t==='none'){ paramRowA.style.display='none'; paramRowB.style.display='none'; }
+  else if(t==='movavg'){
+    paramRowA.style.display=''; paramRowB.style.display='none';
+    paramLabelA.firstChild.textContent = 'Window size ';
+    paramA.min=1; paramA.max=41; paramA.step=2; if(paramA.value<1||paramA.value>41) paramA.value=9;
+    paramValA.textContent = paramA.value + ' samples';
+  } else if(t==='lowpass'){
+    paramRowA.style.display=''; paramRowB.style.display='none';
+    paramLabelA.firstChild.textContent = 'Cutoff frequency ';
+    paramA.min=1; paramA.max=60; paramA.step=1; if(paramA.value>60) paramA.value=15;
+    paramValA.textContent = paramA.value + ' Hz';
+  } else if(t==='highpass'){
+    paramRowA.style.display=''; paramRowB.style.display='none';
+    paramLabelA.firstChild.textContent = 'Cutoff frequency ';
+    paramA.min=0.2; paramA.max=20; paramA.step=0.2; if(paramA.value>20) paramA.value=1;
+    paramValA.textContent = paramA.value + ' Hz';
+  } else if(t==='notch'){
+    paramRowA.style.display=''; paramRowB.style.display='';
+    paramLabelA.firstChild.textContent = 'Center frequency ';
+    paramA.min=20; paramA.max=100; paramA.step=1; if(paramA.value<20) paramA.value=60;
+    paramValA.textContent = paramA.value + ' Hz';
+    paramValB.textContent = paramB.value;
+  }
+}
+
+function dominantFrequency(mags){
+  let bestK=1, bestV=-1;
+  const minBin = Math.max(1, Math.round(0.4*N/FS)); // ignore near-DC
+  for(let k=minBin;k<mags.length;k++){
+    if(mags[k]>bestV){ bestV=mags[k]; bestK=k; }
+  }
+  return {freq: bestK*FS/N, mag: bestV};
+}
+
+function recompute(){
+  freqVal.textContent = parseFloat(freqEl.value).toFixed(1) + ' Hz';
+  humVal.textContent = parseFloat(humAmp.value).toFixed(2);
+  artifactVal.textContent = parseFloat(artifactAmp.value).toFixed(2);
+  noiseVal.textContent = parseFloat(noiseAmp.value).toFixed(2);
+  freqRow.style.display = presetEl.value==='jump' ? 'none' : '';
+
+  updateParamUIForFilter();
+  if(filterType.value==='movavg') paramValA.textContent = paramA.value + ' samples';
+  else if(filterType.value!=='none') paramValA.textContent = paramA.value + ' Hz';
+  paramValB.textContent = paramB.value;
+
+  const base = movementSignal(presetEl.value, parseFloat(freqEl.value));
+  const raw = addNoise(base, {
+    humOn: humOn.checked, humAmp: parseFloat(humAmp.value),
+    artifactOn: artifactOn.checked, artifactAmp: parseFloat(artifactAmp.value),
+    noiseAmp: parseFloat(noiseAmp.value)
+  });
+  const filtered = applyFilter(raw, filterType.value, parseFloat(paramA.value), parseFloat(paramB.value));
+
+  timeChart.data.datasets[0].data = Array.from(raw);
+  timeChart.data.datasets[1].data = Array.from(filtered);
+  timeChart.update();
+
+  const rawMag = magnitudeSpectrum(raw);
+  const filtMag = magnitudeSpectrum(filtered);
+  freqChart.data.datasets[0].data = Array.from(rawMag);
+  freqChart.data.datasets[1].data = Array.from(filtMag);
+  freqChart.update();
+
+  renderCallouts(rawMag, filtMag);
+}
+
+function renderCallouts(rawMag, filtMag){
+  const items = [];
+  const dom = dominantFrequency(rawMag);
+  items.push({cls:'info', html:`<b>Dominant frequency:</b> ${dom.freq.toFixed(1)} Hz — this is the strongest peak in the raw spectrum. For a periodic movement signal, this should land close to the stride/cadence frequency you set.`});
+
+  if(humOn.checked){
+    items.push({cls:'warn', html:`<b>60 Hz spike detected.</b> A sharp, narrow spike at exactly 60 Hz is the classic signature of electrical powerline interference — common in EMG and any wired sensor near AC power. A <b>notch filter</b> centered at 60 Hz removes it without touching nearby frequencies.`});
+  }
+  if(artifactOn.checked){
+    items.push({cls:'warn', html:`<b>Broad hump near 30&ndash;40 Hz.</b> Unlike the sharp powerline spike, this is spread across a band — typical of motion artifact or soft-tissue vibration. A single notch won't fix this cleanly; a <b>low-pass filter</b> with a cutoff below the hump is usually the better tool.`});
+  }
+  if(parseFloat(noiseAmp.value) > 0.15){
+    items.push({cls:'warn', html:`<b>Raised, flat noise floor across all frequencies.</b> That's broadband sensor noise, not a specific interference source. Both <b>moving average</b> and <b>low-pass filtering</b> attack this by trading away high-frequency content generally.`});
+  }
+  if(filterType.value!=='none'){
+    let note='';
+    if(filterType.value==='movavg') note = `A moving average is a crude low-pass: easy to compute, but its frequency response has ripples and side-lobes rather than a clean cutoff — notice it doesn't fully remove the 60&nbsp;Hz spike even with a wide window.`;
+    if(filterType.value==='lowpass') note = `The low-pass filter attenuates content above its cutoff — watch the filtered spectrum (amber) drop off past that point, and the filtered time trace lag very slightly behind the original.`;
+    if(filterType.value==='highpass') note = `The high-pass filter removes slow drift and near-DC content below its cutoff — useful for baseline wander, but it will also distort a genuinely slow movement signal if the cutoff is set too high.`;
+    if(filterType.value==='notch') note = `The notch filter carves out a narrow band around its center frequency and leaves everything else essentially untouched — precise, but only useful when you know exactly which frequency to target.`;
+    items.push({cls:'good', html:`<b>What this filter is doing:</b> ${note}`});
+  }
+  callouts.innerHTML = items.map(it=>`<div class="callout ${it.cls}">${it.html}</div>`).join('');
+}
+
+[presetEl,freqEl,humOn,humAmp,artifactOn,artifactAmp,noiseAmp,filterType,paramA,paramB].forEach(elm=>{
+  elm.addEventListener('input', recompute);
+  elm.addEventListener('change', recompute);
+});
+
+updateParamUIForFilter();
+recompute();
+</script>
+
+</body>
+</html>
